@@ -79,6 +79,16 @@ CI one-command gate:
    `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --mode brief+prompt --reference-file refs/screen-analysis.json --strict-reference-schema`
 9. If quality gate fails, run audit + fix workflow.
 
+## Workflow 1.5: Novice Decision Assist (Recommended)
+
+1. User only provides a high-level goal (example: "I want to build a blog").
+2. Run handbook mode:
+   `python scripts/run_pipeline.py --query "<requirement>" --stack nextjs --format json`
+3. Read `manual_assistant.decision_assistant.recommended_style_options` and explain 3-4 options with trade-offs.
+4. Ask `manual_assistant.decision_assistant.decision_questions` to help user pick direction.
+5. After user selects one option, run codegen mode with forced style:
+   `python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --style <slug> --blend-mode off --format json`
+
 ## Workflow 2: Existing Prompt -> Quality Audit -> Fix Suggestions
 
 1. Audit prompt text:

@@ -19,11 +19,28 @@ QA_SCRIPT = SCRIPT_DIR / "qa_prompt.py"
 
 PRODUCT_HINTS = {
     "dashboard": ["dashboard", "admin", "panel", "console", "后台", "仪表盘", "控制台"],
+    "blog": ["blog", "article", "post", "editorial", "博客", "文章", "专栏", "内容站"],
     "landing-page": ["landing", "hero", "marketing", "homepage", "落地页", "首页", "营销"],
     "ecommerce": ["shop", "store", "ecommerce", "checkout", "商品", "电商", "购物", "支付"],
     "docs": ["docs", "documentation", "guide", "manual", "文档", "说明", "手册"],
     "portfolio": ["portfolio", "case study", "作品集", "案例"],
 }
+
+NOVICE_HINTS = [
+    "一窍不通",
+    "不会",
+    "不懂",
+    "小白",
+    "新手",
+    "不确定",
+    "不知道",
+    "just started",
+    "beginner",
+    "new to frontend",
+    "no idea",
+]
+
+OPTION_IDS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def infer_product_type(query: str) -> str:
@@ -32,6 +49,129 @@ def infer_product_type(query: str) -> str:
         if any(keyword in text for keyword in keywords):
             return product_type
     return "general-web-product"
+
+
+def infer_user_confidence(query: str) -> str:
+    text = (query or "").lower()
+    if any(keyword in text for keyword in NOVICE_HINTS):
+        return "low"
+    return "medium"
+
+
+def is_zh(text: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text or "")
+
+
+def style_complexity_label(candidate: dict[str, Any], zh: bool) -> str:
+    tags = {str(tag).lower() for tag in (candidate.get("preview", {}) or {}).get("tags", [])}
+    style_type = str(candidate.get("styleType", "")).lower()
+    if "expressive" in tags or "high-contrast" in tags:
+        return "进阶" if zh else "advanced"
+    if style_type == "layout" or "minimal" in tags or "modern" in tags:
+        return "入门友好" if zh else "beginner-friendly"
+    return "标准" if zh else "standard"
+
+
+def style_risk_note(candidate: dict[str, Any], product_type: str, zh: bool) -> str:
+    tags = {str(tag).lower() for tag in (candidate.get("preview", {}) or {}).get("tags", [])}
+    style_type = str(candidate.get("styleType", "")).lower()
+    if product_type in {"docs", "dashboard"} and ("expressive" in tags or "high-contrast" in tags):
+        return "视觉冲击较强，可能影响信息可读性。" if zh else "Very expressive; can reduce dense-information readability."
+    if product_type in {"landing-page", "ecommerce"} and style_type == "layout":
+        return "这是布局型风格，建议后续再配一个视觉风格。" if zh else "This is layout-first; pair with a visual style in the next step."
+    return "风险较低，适合作为默认起点。" if zh else "Low implementation risk; good default starting point."
+
+
+def build_style_options(search_payload: dict[str, Any], product_type: str, zh: bool, top: int = 4) -> list[dict[str, Any]]:
+    candidates = search_payload.get("candidates", [])[:top]
+    options: list[dict[str, Any]] = []
+    for idx, candidate in enumerate(candidates):
+        option_id = OPTION_IDS[idx] if idx < len(OPTION_IDS) else f"OPT{idx + 1}"
+        options.append(
+            {
+                "option_id": option_id,
+                "slug": candidate.get("slug"),
+                "name": candidate.get("name"),
+                "nameEn": candidate.get("nameEn"),
+                "styleType": candidate.get("styleType"),
+                "reason": candidate.get("reason_summary"),
+                "complexity": style_complexity_label(candidate, zh),
+                "risk_note": style_risk_note(candidate, product_type, zh),
+                "keywords": (candidate.get("preview", {}) or {}).get("keywords", [])[:6],
+                "tags": (candidate.get("preview", {}) or {}).get("tags", [])[:4],
+            }
+        )
+    return options
+
+
+def build_decision_questions(product_type: str, zh: bool) -> list[dict[str, Any]]:
+    if zh:
+        questions = [
+            {
+                "id": "visual_intensity",
+                "question": "你希望页面更偏哪种视觉强度？",
+                "choices": ["克制耐看", "平衡现代", "强烈个性"],
+            },
+            {
+                "id": "content_density",
+                "question": "博客内容展示更偏向哪种？",
+                "choices": ["长文阅读优先", "图文平衡", "视觉封面优先"],
+            },
+            {
+                "id": "interaction_level",
+                "question": "你希望动效强度如何？",
+                "choices": ["几乎无动效", "适中动效", "明显动效"],
+            },
+        ]
+        if product_type in {"docs", "dashboard"}:
+            questions.append(
+                {
+                    "id": "readability_priority",
+                    "question": "是否把可读性/信息效率放在最高优先级？",
+                    "choices": ["是，优先可读性", "平衡", "不是，视觉更重要"],
+                }
+            )
+        return questions
+
+    questions = [
+        {
+            "id": "visual_intensity",
+            "question": "How strong should the visual style be?",
+            "choices": ["Calm and clean", "Balanced modern", "Bold and expressive"],
+        },
+        {
+            "id": "content_density",
+            "question": "How should blog content be presented?",
+            "choices": ["Long-form reading first", "Balanced text and visuals", "Visual-first covers"],
+        },
+        {
+            "id": "interaction_level",
+            "question": "How much motion should be used?",
+            "choices": ["Minimal motion", "Moderate motion", "Noticeable motion"],
+        },
+    ]
+    if product_type in {"docs", "dashboard"}:
+        questions.append(
+            {
+                "id": "readability_priority",
+                "question": "Should readability and information efficiency be the highest priority?",
+                "choices": ["Yes", "Balanced", "No, visual impact first"],
+            }
+        )
+    return questions
+
+
+def build_next_step_templates(style_options: list[dict[str, Any]], query: str, stack: str, zh: bool) -> dict[str, Any]:
+    selected = style_options[0]["slug"] if style_options else ""
+    if zh:
+        return {
+            "after_user_selects_style": f'python scripts/run_pipeline.py --workflow codegen --query "{query}" --stack {stack} --style {selected} --blend-mode off --format json',
+            "assistant_script": "先展示 3-4 个风格选项并解释差异，用户选择后再进入代码生成。",
+        }
+    return {
+        "after_user_selects_style": f'python scripts/run_pipeline.py --workflow codegen --query "{query}" --stack {stack} --style {selected} --blend-mode off --format json',
+        "assistant_script": "Present 3-4 style options with trade-offs, then generate code after user selection.",
+    }
 
 
 def build_manual_assistant(
@@ -45,16 +185,27 @@ def build_manual_assistant(
     design_brief = brief_payload.get("design_brief", {}) or {}
     design_intent = design_brief.get("design_intent", {}) or {}
     style_choice = design_brief.get("style_choice", {}) or {}
+    zh = is_zh(query)
+    product_type = infer_product_type(query)
+    style_options = build_style_options(search_payload, product_type=product_type, zh=zh)
+    decision_questions = build_decision_questions(product_type=product_type, zh=zh)
+    next_step_templates = build_next_step_templates(style_options=style_options, query=query, stack=stack, zh=zh)
 
     return {
         "purpose": "Use this as a frontend design handbook context before generating code.",
         "product_profile": {
             "query": query,
-            "inferred_product_type": infer_product_type(query),
+            "inferred_product_type": product_type,
+            "user_confidence": infer_user_confidence(query),
             "stack": stack,
             "purpose": design_intent.get("purpose"),
             "audience": design_intent.get("audience"),
             "tone": design_intent.get("tone"),
+        },
+        "decision_assistant": {
+            "recommended_style_options": style_options,
+            "decision_questions": decision_questions,
+            "next_step_templates": next_step_templates,
         },
         "style_recommendation": {
             "selected_style": selected_style,
@@ -147,6 +298,7 @@ def to_markdown(payload: dict[str, Any]) -> str:
     manual = payload.get("manual_assistant", {}) or {}
     profile = manual.get("product_profile", {}) or {}
     handbook = manual.get("implementation_handbook", {}) or {}
+    decision = manual.get("decision_assistant", {}) or {}
     if manual:
         lines.extend(
             [
@@ -160,6 +312,13 @@ def to_markdown(payload: dict[str, Any]) -> str:
                 f"- Interaction rules: {len(handbook.get('interaction_rules', []))}",
             ]
         )
+    options = decision.get("recommended_style_options", [])[:4]
+    if options:
+        lines.extend(["", "## Style Options"])
+        for option in options:
+            lines.append(
+                f"- [{option.get('option_id')}] `{option.get('slug')}` / {option.get('nameEn')} - {option.get('complexity')} - {option.get('risk_note')}"
+            )
 
     return "\n".join(lines)
 
