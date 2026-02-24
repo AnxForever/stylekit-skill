@@ -174,6 +174,45 @@ def build_next_step_templates(style_options: list[dict[str, Any]], query: str, s
     }
 
 
+def build_cc_conversation_flow(zh: bool) -> dict[str, Any]:
+    if zh:
+        return {
+            "phase_1_opening": {
+                "goal": "确认产品目标与用户场景",
+                "assistant_template": "我先帮你把方向收敛。你这个产品主要给谁用？核心目标是阅读、转化，还是展示品牌？",
+                "expected_user_input": ["产品类型", "目标用户", "主要任务"],
+            },
+            "phase_2_style_decision": {
+                "goal": "给用户可理解的 3-4 个风格选项并解释差异",
+                "assistant_template": "我给你 4 个可选风格，每个都附上难度和风险。你选 A/B/C/D，我再按这个风格生成页面。",
+                "expected_user_input": ["选项ID", "偏好强度", "是否优先可读性"],
+            },
+            "phase_3_delivery": {
+                "goal": "锁定风格并进入实现",
+                "assistant_template": "已锁定风格。我会按该风格输出首页、文章页、列表页，并保持统一视觉语言。",
+                "expected_user_input": ["技术栈", "是否深色模式", "是否需要多语言"],
+            },
+        }
+
+    return {
+        "phase_1_opening": {
+            "goal": "Clarify product goal and audience context",
+            "assistant_template": "Let me narrow the direction first. Who is this for, and is the primary goal reading, conversion, or brand expression?",
+            "expected_user_input": ["product type", "target audience", "primary task"],
+        },
+        "phase_2_style_decision": {
+            "goal": "Offer 3-4 understandable style options with trade-offs",
+            "assistant_template": "I will give you 4 style options with complexity and risk notes. Pick A/B/C/D, then I will generate with that style.",
+            "expected_user_input": ["option id", "visual intensity preference", "readability priority"],
+        },
+        "phase_3_delivery": {
+            "goal": "Lock style and move to implementation",
+            "assistant_template": "Style locked. I will generate homepage, post page, and listing page with consistent visual language.",
+            "expected_user_input": ["tech stack", "dark mode needed", "multilingual needed"],
+        },
+    }
+
+
 def build_manual_assistant(
     *,
     query: str,
@@ -190,6 +229,7 @@ def build_manual_assistant(
     style_options = build_style_options(search_payload, product_type=product_type, zh=zh)
     decision_questions = build_decision_questions(product_type=product_type, zh=zh)
     next_step_templates = build_next_step_templates(style_options=style_options, query=query, stack=stack, zh=zh)
+    conversation_flow = build_cc_conversation_flow(zh=zh)
 
     return {
         "purpose": "Use this as a frontend design handbook context before generating code.",
@@ -206,6 +246,7 @@ def build_manual_assistant(
             "recommended_style_options": style_options,
             "decision_questions": decision_questions,
             "next_step_templates": next_step_templates,
+            "cc_conversation_flow": conversation_flow,
         },
         "style_recommendation": {
             "selected_style": selected_style,

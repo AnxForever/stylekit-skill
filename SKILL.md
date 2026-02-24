@@ -88,6 +88,7 @@ CI one-command gate:
 4. Ask `manual_assistant.decision_assistant.decision_questions` to help user pick direction.
 5. After user selects one option, run codegen mode with forced style:
    `python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --style <slug> --blend-mode off --format json`
+6. Follow `references/cc-decision-conversation-template.md` for a turn-by-turn assistant script.
 
 ## Workflow 2: Existing Prompt -> Quality Audit -> Fix Suggestions
 
@@ -163,6 +164,7 @@ If stack is unknown, fallback to framework-agnostic Tailwind semantics.
 - `references/frontend-design-principles.md`: distinctiveness and anti-generic design heuristics.
 - `references/design-system-patterns.md`: token hierarchy and component architecture.
 - `references/accessibility-gate.md`: WCAG + mobile touch baseline for prompt quality.
+- `references/cc-decision-conversation-template.md`: assistant dialogue template for novice user decision flow.
 - `scripts/refresh-style-prompts.sh`: rebuild style dataset from local repo.
 - `scripts/search_stylekit.py`: query -> ranked style candidates.
 - `scripts/generate_brief.py`: query -> design brief + prompts.
