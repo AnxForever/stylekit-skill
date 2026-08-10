@@ -1,3 +1,5 @@
+
+
 # @anxforever/stylekit-skill
 
 StyleKit 风格提示词 Skill（独立仓库版）。  
@@ -27,6 +29,12 @@ npx @anxforever/stylekit-skill install --tool auto
 
 ```bash
 npx @anxforever/stylekit-skill install --tool codex --force
+```
+
+### 预览安装路径与动作（Dry Run）
+
+```bash
+npx @anxforever/stylekit-skill install --tool codex --dry-run
 ```
 
 ### 卸载
