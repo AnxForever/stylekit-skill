@@ -15,6 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Validate SKILL.md frontmatter
         run: |
           head -1 SKILL.md | grep -q '^---$' || { echo "SKILL.md must start with YAML frontmatter"; exit 1; }
@@ -39,3 +44,9 @@ jobs:
             echo "$code $url"
             [ "$code" = "200" ] || { echo "FAIL: $url returned $code"; exit 1; }
           done
+
+      - name: Test scripts/fetch-style.py
+        run: |
+          python3 scripts/fetch-style.py glassmorphism --tokens | grep -q "TOKENS" || { echo "fetch-style.py failed"; exit 1; }
+          python3 scripts/fetch-style.py neo-brutalist --recipes | grep -q "STYLE:" || { echo "fetch-style.py --recipes failed"; exit 1; }
+          python3 scripts/fetch-style.py --search cyberpunk | grep -q "vaporwave" || { echo "fetch-style.py --search failed"; exit 1; }
