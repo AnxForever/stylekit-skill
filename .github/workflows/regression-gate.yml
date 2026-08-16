@@ -81,7 +81,9 @@ jobs:
           }
           EOF
           python3 scripts/eval-check.py neo-brutalist /tmp/compliant.tsx || { echo "eval-check.py rejected compliant code"; exit 1; }
-          python3 scripts/eval-check.py neo-brutalist /tmp/violating.tsx && { echo "eval-check.py accepted violating code"; exit 1; }
+          if python3 scripts/eval-check.py neo-brutalist /tmp/violating.tsx; then
+            echo "eval-check.py accepted violating code"; exit 1;
+          fi
 
       - name: Run with/without-skill benchmark
         run: |
