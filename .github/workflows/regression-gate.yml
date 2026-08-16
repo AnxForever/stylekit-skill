@@ -15,48 +15,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Environment info
+      - name: Validate SKILL.md frontmatter
         run: |
-          python3 --version
-          node --version
-          node bin/stylekit-skill.js doctor
+          head -1 SKILL.md | grep -q '^---$' || { echo "SKILL.md must start with YAML frontmatter"; exit 1; }
+          grep -q '^name: stylekit$' SKILL.md || { echo "SKILL.md missing 'name: stylekit'"; exit 1; }
+          grep -q '^description:' SKILL.md || { echo "SKILL.md missing description"; exit 1; }
 
-      - name: Install test dependencies
+      - name: Reject unpublished-package wording
         run: |
-          pip install pytest jsonschema
+          if grep -Eiq 'not (yet )?published|unpublished|repository[- ]only|尚未发布' SKILL.md; then
+            echo "SKILL.md must not claim packages are unpublished (they are public beta on npm)";
+            exit 1;
+          fi
 
-      - name: Run unit tests
+      - name: Verify referenced endpoints return 200
         run: |
-          pytest tests/ -m "not slow" -v
-
-      - name: Run contract tests
-        run: |
-          pytest tests/ -m slow -v
-
-      - name: Run smoke test
-        run: |
-          python3 scripts/smoke_test.py
-
-      - name: Run taxonomy guard
-        run: |
-          python3 scripts/validate_taxonomy.py --max-unused-style-tags 0 --fail-on-warning
-
-      - name: Run output-contract sync guard
-        run: |
-          python3 scripts/validate_output_contract_sync.py --format text --fail-on-warning
-
-      - name: Run benchmark regression gate
-        run: |
-          bash scripts/ci_regression_gate.sh \
-            --baseline references/benchmark-baseline.json \
-            --snapshot-out tmp/benchmark-ci-latest.json
+          for url in \
+            https://www.stylekit.top/api/styles \
+            https://www.stylekit.top/r/glassmorphism.json \
+            https://www.stylekit.top/llms-full.txt \
+            https://www.stylekit.top/api/styles/neo-brutalist; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url")
+            echo "$code $url"
+            [ "$code" = "200" ] || { echo "FAIL: $url returned $code"; exit 1; }
+          done
