@@ -30,7 +30,8 @@ from pathlib import Path
 BASE = "https://www.stylekit.top/api/styles"
 
 TAILWIND_CLASS_RE = re.compile(
-    r"-?[a-zA-Z][a-zA-Z0-9-]*(?::[a-zA-Z0-9-]+)*(?:\[[^\]]+\])?(?:\/[a-zA-Z0-9_.%-]+)?"
+    r"-?[a-zA-Z][a-zA-Z0-9-]*(?::[a-zA-Z0-9-]+)*(?:\[[^\]]+\])?"
+    r"(?:\/(?:\[[^\]]+\]|[a-zA-Z0-9_%-]+))?"
 )
 HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![\w])")
 
