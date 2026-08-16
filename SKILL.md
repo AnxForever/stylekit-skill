@@ -153,6 +153,18 @@ Before delivering generated UI, apply the checks in
 signature test, and token test. Keep the style identity strong, meet the accessibility baseline,
 and avoid the anti-pattern blacklist.
 
+Run the evaluator on the generated code to catch rule violations mechanically:
+
+```bash
+python3 scripts/eval-check.py <slug> <file>                  # check a file
+python3 scripts/eval-check.py <slug> <file> --component button   # also enforce required classes for a declared component
+```
+
+`eval-check.py` reports forbidden classes, off-palette colors, and (with `--component`) missing
+required classes. It treats the style's own component templates as the reference implementation:
+a required entry is only enforced when the matching template uses it, so a spec-data inconsistency
+does not produce false failures on generated code.
+
 ## Pre-delivery checklist
 
 Confirm each item with concrete evidence before presenting the result:
@@ -166,6 +178,19 @@ Confirm each item with concrete evidence before presenting the result:
 - [ ] Colors are the style's palette (primary/secondary/accent), not invented hexes.
 - [ ] Swap test passed — replacing the signature classes with defaults would visibly change the identity.
 - [ ] Responsive behavior is mobile-first and consistent across breakpoints.
+- [ ] `eval-check.py` reported no violations for the delivered files.
+
+## Spec data health
+
+The catalog is community-curated; occasionally a style's required table or a component template
+contains an internal contradiction (e.g. a template uses a class the style forbids, or a template
+carries a hex not in the palette). When you hit one:
+
+- **Trust the component template** over the required table — the template is the verified
+  reference implementation.
+- **Report the inconsistency** rather than silently working around it: run
+  `python3 scripts/verify-spec.py <slug>` to enumerate the exact contradictions, and tell the
+  user (or open an issue on github.com/AnxForever/stylekit) so the catalog can be fixed.
 
 ## Resources
 
@@ -173,3 +198,6 @@ Confirm each item with concrete evidence before presenting the result:
 - `references/design-principles.md` — quality bar: intent-first generation, token hierarchy, accessibility baseline, pre-delivery validation
 - `scripts/fetch-style.py` — fetch a style's spec from the API and print a compact code-generation reference
 - `scripts/detect-project.py` — detect the target project's framework, Tailwind version, and shadcn setup
+- `scripts/eval-check.py` — mechanical compliance gate for generated code (forbidden, palette, required)
+- `scripts/verify-spec.py` — audit a style's spec for internal contradictions (data health)
+- `scripts/benchmark.py` — with/without-skill pass-rate comparison (regression suite)
