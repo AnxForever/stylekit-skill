@@ -1,233 +1,157 @@
 ---
-name: stylekit-style-prompts
-description: Use when users ask to generate beautiful frontend prompts from StyleKit styles, select the best matching style, blend multiple styles, or audit/fix prompt quality for ChatGPT, Cursor, Claude, and other coding assistants.
+name: stylekit
+description: Apply a specific, consistent visual style to frontend UI you are generating. Use when building or styling web UI (pages, components, dashboards, landing pages) and you want a named aesthetic — Glassmorphism, Neo-Brutalist, Cyberpunk, Bauhaus, Apple, Stripe, Linear, and many more — instead of generic AI defaults. StyleKit gives you design tokens, component recipes, and AI rules for each style, with themes installable through the shadcn registry.
+metadata:
+  homepage: https://www.stylekit.top
 ---
 
-# StyleKit Style Prompts
+# StyleKit
 
-## Purpose
+StyleKit is an open-source style library for AI coding with 146 curated
+visual styles, each with machine-readable design tokens, component recipes, and
+AI rules. Use it to make the UI you generate look like a deliberate, named style
+instead of generic AI output.
 
-Generate better-looking frontend output by combining StyleKit style identity, actionable constraints, and quality checks.
+## When to use
 
-## When to Use
+- The user asks for a specific look ("make it look like Stripe", "cyberpunk
+  dashboard", "cozy cottagecore blog", "brutalist landing page").
+- You are generating frontend UI and want a coherent, consistent design system
+  rather than ad-hoc styling.
+- The user wants their AI-generated site to match an aesthetic across many
+  components.
 
-Activate this skill when the user:
-- Asks to generate a frontend design prompt or style prompt
-- Wants to select, compare, or blend StyleKit visual styles
-- Needs a design brief for a new page, dashboard, or landing page
-- Asks to audit or fix an existing frontend prompt's quality
-- Mentions StyleKit, style prompts, or design system prompt generation
-- Wants to convert a screenshot or Figma frame into a style-constrained prompt
+## Workflow
 
-Do NOT use this skill for general CSS questions, backend logic, or non-visual tasks.
+For any request, follow this order:
 
-## Quick One-shot Command
+1. **Pick a style** — match the user's intent to a catalog slug.
+2. **Fetch the full spec** — pull tokens, recipes, and AI rules for that slug.
+3. **Install the theme** (optional) — drop the shadcn registry theme into the project.
+4. **Generate with the rules** — use the style's exact tokens and do/don't lists.
 
-Run handbook mode in one command (default):
+## Step 1 — Pick a style
 
-`python scripts/run_pipeline.py --query "<requirement>" --stack nextjs --format json`
+Browse the catalog and machine-readable index:
 
-Run site-type routed composition (style + layout + motion + interaction):
+- Human catalog: https://www.stylekit.top/styles
+- Browse by theme: https://www.stylekit.top/collections (dark-mode, retro-vintage,
+  anime-manga, game-ui, colorful-bold, hand-drawn)
+- Colors / hex codes: https://www.stylekit.top/colors
+- JSON list of every style: `GET https://www.stylekit.top/api/styles`
+  → `{ total, styles: [{ slug, nameEn, description, styleType, keywords, colors, ... }] }`
+- Full machine-readable spec for agents: https://www.stylekit.top/llms-full.txt
+- Markdown spec for agents: https://www.stylekit.top/llms.txt
 
-`python scripts/run_pipeline.py --query "<requirement>" --stack nextjs --site-type dashboard --recommendation-mode hybrid --content-depth skeleton --decision-speed fast --format json`
+Each style has a `slug` (e.g. `glassmorphism`, `neo-brutalist`, `stripe-style`,
+`bauhaus`). You need the slug for the next step.
 
-Run prompt-generation mode with QA gate:
+## Step 2 — Fetch the full spec
 
-`python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --format json`
+For the chosen slug, fetch the machine-readable spec — do not guess tokens or
+rules from memory (styles get updated):
 
-Force multi-style blend:
+- Full style pack: `GET https://www.stylekit.top/api/styles/{slug}`
+  → `{ slug, name, description, philosophy, doList, dontList, aiRules, colors, components, globalCss, tokens, recipes, version }`
+- Markdown rendering: `GET https://www.stylekit.top/api/styles/{slug}/md`
+- Tokens only: `GET https://www.stylekit.top/api/styles/{slug}/tokens`
+- Recipes only: `GET https://www.stylekit.top/api/styles/{slug}/recipes`
+- Human page: https://www.stylekit.top/styles/{slug}
 
-`python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --blend-mode on --format json`
+### Understand the style anatomy
 
-Run targeted refinement (polish/debug/contrast/layout/component-fill):
+Process the spec fields in this priority order:
 
-`python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --refine-mode debug --format json`
+1. **aiRules** — compact instruction string written specifically for AI. Highest priority; overrides general patterns when they conflict.
+2. **doList / dontList** — hard constraints, not suggestions. Every generated component must satisfy all items.
+3. **philosophy** — the "why" behind the style. Read first to determine ambiguous decisions (visual hierarchy, spacing intent, mood).
+4. **colors** — `{ primary, secondary, accent[] }`. Always the source of truth for the palette.
+5. **tokens** — semantic categories mapped to exact Tailwind classes. Use them instead of inventing classes.
+6. **components** — code templates for button, card, input (and optionally nav, hero, footer). Starting points, not copy-paste targets.
+7. **globalCss** — base CSS that must be included in the page/layout when using this style.
 
-Run with screenshot/Figma reference constraints:
+## Step 3 — Install the theme (optional)
 
-`python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --reference-type screenshot --reference-notes "<what to preserve/fix>" --format json`
+Drop the theme into an existing shadcn/ui project (Tailwind v4):
 
-Run with structured reference payload:
+```bash
+npx shadcn add https://www.stylekit.top/r/<slug>.json
+```
 
-`python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --reference-type screenshot --reference-file refs/screen-analysis.json --format json`
+Requires a `tsconfig.json` in the target project. The CLI injects the style's
+light + dark `cssVars` into `globals.css`. Full guide: https://www.stylekit.top/developers
 
-Run strict schema mode for reference payload:
+## Step 4 — Generate with the style's rules
 
-`python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --reference-type screenshot --reference-file refs/screen-analysis.json --strict-reference-schema --format json`
+1. Use the style's **design tokens** (colors, spacing, typography, shadows,
+   radii) — do not invent your own values.
+2. Follow the **AI rules** and **doList/dontList** — these encode what makes the
+   style read as intentional (e.g. Neo-Brutalist: thick borders, hard shadows,
+   no rounded corners; Glassmorphism: high blur, translucency, inner glow).
+3. Use the **component templates** and **recipes** as starting points; adapt to
+   the user's content.
+4. Keep the style consistent across every component you generate in the session,
+   including responsive breakpoints (mobile-first).
 
-Benchmark current quality:
+### Example — good (uses exact token classes)
 
-`python scripts/benchmark_pipeline.py --format json`
+```tsx
+// Neo-Brutalist button — token classes from the style pack
+<button className="
+  px-6 py-3
+  bg-[#ff006e] text-white font-black
+  border-2 md:border-4 border-black rounded-none
+  shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]
+  hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]
+  active:translate-x-[4px] active:translate-y-[4px]
+  transition-all duration-200
+">
+  Click Me
+</button>
+```
 
-Benchmark with snapshot output:
+### Example — bad (guessing classes, ignoring tokens)
 
-`python scripts/benchmark_pipeline.py --format json --snapshot-out tmp/benchmark-latest.json`
+```tsx
+// WRONG: rounded-lg violates neo-brutalist (must be rounded-none)
+// WRONG: shadow-lg violates neo-brutalist (must use hard-edge shadow)
+// WRONG: bg-blue-500 is not in the style's color palette
+<button className="px-6 py-3 bg-blue-500 rounded-lg shadow-lg">Click Me</button>
+```
 
-Run regression gate against baseline snapshot:
+## Anti-patterns
 
-`python scripts/benchmark_pipeline.py --format json --baseline-snapshot tmp/benchmark-baseline.json --fail-on-regression`
+- **Don't mix tokens from different styles.** Each style's tokens are internally consistent; mixing produces incoherent UI.
+- **Don't ignore aiRules.** They override general patterns and may contradict common Tailwind conventions.
+- **Don't use generic Tailwind when style-specific tokens exist.** Use `shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]` for neo-brutalist, not `shadow-md`.
+- **Don't skip the philosophy.** It determines visual hierarchy decisions.
+- **Don't generate without checking doList/dontList.** A glassmorphism component without `backdrop-blur` is broken; a neo-brutalist component with `rounded-lg` is wrong.
+- **Don't hardcode hex values.** Use the style's `colors` object and token classes.
+- **Don't rely on memory — always fetch the spec.** Styles get updated; stale data leads to violations.
 
-Auto-update baseline on successful gate:
+## Popular styles — visual signatures
 
-`python scripts/benchmark_pipeline.py --format json --baseline-snapshot references/benchmark-baseline.json --baseline-update-mode on-pass --baseline-update-target references/benchmark-baseline.json`
+| Style | Key Visual Traits | Forbidden | Required |
+|-------|------------------|-----------|----------|
+| `neo-brutalist` | Black borders, hard shadows, no rounding | `rounded-*`, `shadow-lg`, gradients | `rounded-none`, `border-black`, hard-edge `shadow-[...]` |
+| `glassmorphism` | Frosted glass, blur, translucent | `rounded-none`, `bg-white`, `border-black` | `backdrop-blur-*`, `bg-white/N`, `border-white/N` |
+| `neumorphism` | Soft extruded surfaces, subtle shadows | Hard shadows, high contrast borders | Dual shadows (light + dark), soft bg |
+| `claymorphism` | Puffy 3D clay look, inner shadows | Flat shadows, sharp corners | Inner shadow, rounded corners, pastel bg |
+| `apple-style` | Clean, precise, SF Pro feel | Heavy borders, loud colors | Subtle shadows, system fonts, generous whitespace |
+| `material-design` | Elevation system, ripple effects | Hard-edge shadows, no-radius | `shadow-md`, `rounded-lg`, elevation layers |
+| `pixel-art` | Pixelated edges, 8-bit aesthetic | Smooth gradients, anti-aliased borders | `rounded-none`, pixel fonts, step-based colors |
+| `cyberpunk-neon` | Neon glows, dark bg, electric colors | Pastel colors, soft shadows | Neon `shadow-[0_0_Npx_color]`, dark bg, bright accents |
+| `swiss-style` | Grid-based, Helvetica, minimal | Decorative elements, rounded corners | Grid alignment, sans-serif, high contrast |
+| `art-deco` | Gold accents, geometric patterns, luxury | Casual fonts, muted colors | Gold/brass tones, geometric borders, serif fonts |
+| `ghibli-style` | Warm watercolor, hand-drawn feel | Sharp edges, neon colors | Soft pastels, rounded shapes, warm tones |
+| `vaporwave` | Purple/pink gradients, retro-futurism | Muted earth tones, minimal palette | Gradient bg, neon pink/cyan, retro fonts |
+| `dark-mode` | Dark surfaces, subtle elevation | Pure white bg, low contrast | Dark bg, muted text, subtle borders |
+| `editorial` | Typography-driven, magazine layout | Heavy UI chrome, small text | Large type, generous spacing, serif headings |
+| `korean-minimal` | Soft, airy, pastel, generous whitespace | Heavy borders, loud colors | Subtle pastels, thin borders, rounded-2xl |
 
-CI one-command gate:
+## Notes
 
-`bash scripts/ci_regression_gate.sh --baseline references/benchmark-baseline.json --snapshot-out tmp/benchmark-ci-latest.json`
-
-Run taxonomy guard with strict style-tag registry usage:
-
-`python scripts/validate_taxonomy.py --format json --max-unused-style-tags 0 --fail-on-warning`
-
-Run output-contract sync guard (docs example JSON vs tests schema):
-
-`python scripts/validate_output_contract_sync.py --format text --fail-on-warning`
-
-Dry-run taxonomy expansion (including optional `new_style_tags` in input JSON):
-
-`python scripts/merge_taxonomy_expansion.py --type animation --input tmp/gemini-output.json --dry-run`
-
-## Workflow 1: Requirement -> Style Candidates -> Design Brief -> Prompt
-
-1. Refresh dataset when needed:
-   `bash scripts/refresh-style-prompts.sh /mnt/d/stylekit`
-2. Retrieve top style candidates:
-   `python scripts/search_stylekit.py --query "<requirement>" --top 5 --site-type <auto|blog|saas|dashboard|docs|ecommerce|landing-page|portfolio|general>`
-3. Generate design brief and prompts:
-   `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --site-type dashboard --recommendation-mode hybrid --content-depth skeleton --decision-speed fast --mode brief+prompt`
-4. If needed, force multi-style blend ownership:
-   `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --mode brief+prompt --blend-mode on`
-5. For iterative work, set refine mode:
-   `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --mode brief+prompt --refine-mode polish`
-6. For screenshot/Figma-driven generation, add reference context:
-   `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --mode brief+prompt --reference-type figma --reference-notes "<frame scope>"`
-7. If reference analysis is available, pass structured payload:
-   `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --mode brief+prompt --reference-type screenshot --reference-json '{"layout":{"issues":["sidebar overlaps content"]}}'`
-8. For high-confidence pipelines, enable strict schema mode:
-   `python scripts/generate_brief.py --query "<requirement>" --stack nextjs --mode brief+prompt --reference-file refs/screen-analysis.json --strict-reference-schema`
-9. If quality gate fails, run audit + fix workflow.
-
-## Workflow 1.5: Novice Decision Assist (Recommended)
-
-1. User only provides a high-level goal (example: "I want to build a blog").
-2. Run handbook mode:
-   `python scripts/run_pipeline.py --query "<requirement>" --stack nextjs --format json`
-3. Read `manual_assistant.decision_assistant.recommended_style_options` and explain 3-4 options with trade-offs.
-4. Ask `manual_assistant.decision_assistant.decision_questions` to help user pick direction.
-5. After user selects one option, run codegen mode with forced style:
-   `python scripts/run_pipeline.py --workflow codegen --query "<requirement>" --stack nextjs --style <slug> --site-type <type> --content-depth skeleton --blend-mode off --format json`
-6. Follow `references/cc-decision-conversation-template.md` for a turn-by-turn assistant script.
-
-## Workflow 2: Existing Prompt -> Quality Audit -> Fix Suggestions
-
-1. Audit prompt text:
-   `python scripts/qa_prompt.py --input prompt.md --style <slug>`
-2. If this is an iterative update, enforce mode alignment:
-   `python scripts/qa_prompt.py --input prompt.md --style <slug> --require-refine-mode layout-fix`
-3. If screenshot/Figma context is required, enforce reference guard:
-   `python scripts/qa_prompt.py --input prompt.md --style <slug> --require-reference-type screenshot`
-4. If structured reference payload exists, require extracted-signal block:
-   `python scripts/qa_prompt.py --input prompt.md --style <slug> --require-reference-type screenshot --require-reference-signals`
-5. Read `violations` and `autofix_suggestions`.
-6. Rewrite prompt and re-run audit until status is `pass`.
-
-## Workflow 3: Multi-style Blend with Conflict Resolution
-
-1. Identify base style from search rank #1.
-2. Select up to 2 supporting styles from top candidates.
-3. Resolve ownership explicitly:
-   - color owner
-   - typography owner
-   - spacing owner
-   - motion/interaction owner
-4. Output one merged prompt with priority order.
-
-## Output Contract
-
-Always follow `references/output-contract.md`.
-
-Primary output object fields:
-
-- `design_brief`
-- `hard_prompt`
-- `soft_prompt`
-- `ai_rules`
-- `style_choice`
-- `site_profile`
-- `tag_bundle`
-- `composition_plan`
-- `decision_flow`
-- `content_plan`
-- `upgrade_candidates`
-- `quality_gate` (for audits)
-- `design_brief.refine_mode`
-- `design_brief.input_context.reference_type`
-
-## Working Rules
-
-- Never invent style slugs.
-- Use only `references/style-prompts.json` as style source of truth.
-- Keep aiRules concrete and testable.
-- Remove contradictory rules before output (single source-of-truth per constraint).
-- Prefer imperative constraints over decorative language.
-- Start with explicit design intent (purpose, audience, tone, memorable hook).
-- Enforce anti-generic constraints to avoid interchangeable AI-looking output.
-- Include pre-delivery validation tests (swap/squint/signature/token).
-- Include an anti-pattern blacklist (absolute layout misuse, nested scroll, missing focus states, etc.).
-- Preserve user language (Chinese in -> Chinese out; English in -> English out).
-- If intent is ambiguous, return top 5 candidates with reasons before final prompt.
-
-## Error Handling
-
-- If `quality_gate.status` is `"fail"`, read `violations` and `autofix_suggestions`, apply fixes, then re-run the QA audit. Repeat up to 3 rounds.
-- If the pipeline exits with a non-zero code, check stderr for `ModuleNotFoundError` (missing Python dependency or wrong cwd) or `FileNotFoundError` (missing reference data — run `refresh-style-prompts.sh` first).
-- If `search_candidates` returns 0 results, broaden the query or remove `--site-type` constraint.
-
-## Parameter Interactions
-
-- `--blend-mode on` + `--style <slug>`: forces blend OFF (explicit style selection overrides blend).
-- `--refine-mode` requires `--workflow codegen`; ignored in handbook mode.
-- `--reference-type` + `--strict-reference-schema`: strict mode validates the reference JSON payload against the expected schema and fails fast on mismatch.
-- `--recommendation-mode hybrid` uses both BM25 search and taxonomy routing; `rules` skips BM25 and relies solely on site-type routing rules.
-- `--content-depth skeleton` produces minimal structure; `storyboard` adds section copy; `near-prod` generates production-ready content blocks.
-- `validate_taxonomy.py --max-unused-style-tags 0 --fail-on-warning` enforces zero unused tags in `style-tag-registry` and treats warnings as failures.
-
-## Stack Adapters
-
-Supported stack hints in generation:
-
-- `html-tailwind`
-- `react`
-- `nextjs`
-- `vue`
-- `svelte`
-- `tailwind-v4`
-
-If stack is unknown, fallback to framework-agnostic Tailwind semantics.
-
-## Resource Files
-
-- `references/style-prompts.json`: full style prompt catalog.
-- `references/style-search-index.json`: lightweight search document index.
-- `references/output-contract.md`: output schema and examples.
-- `references/frontend-design-principles.md`: distinctiveness and anti-generic design heuristics.
-- `references/design-system-patterns.md`: token hierarchy and component architecture.
-- `references/accessibility-gate.md`: WCAG + mobile touch baseline for prompt quality.
-- `references/cc-decision-conversation-template.md`: assistant dialogue template for novice user decision flow.
-- `scripts/refresh-style-prompts.sh`: rebuild style dataset from local repo.
-- `scripts/search_stylekit.py`: query -> ranked style candidates.
-- `scripts/generate_brief.py`: query -> design brief + prompts.
-- `scripts/qa_prompt.py`: prompt quality gate and autofix hints.
-- `scripts/run_pipeline.py`: one-shot search + brief generation + QA gate.
-- `scripts/benchmark_pipeline.py`: benchmark pass-rate, hard-check pass rate, bucket pass-rate (`strict-domain`/`balanced`/`expressive`), snapshot export, and baseline regression gate.
-- `scripts/ci_regression_gate.sh`: CI wrapper for benchmark regression gate (supports baseline bootstrap).
-- `scripts/smoke_test.py`: validate end-to-end script integrity.
-- `scripts/validate_taxonomy.py`: taxonomy consistency + style-tag-registry coverage guard (`--fail-on-warning` promotes warnings to failures).
-- `scripts/validate_output_contract_sync.py`: output-contract markdown JSON examples vs tests schema sync guard (uses the first JSON block in each required section as canonical; `--fail-on-warning` promotes warnings to failures).
-- `scripts/merge_taxonomy_expansion.py`: merge Gemini taxonomy expansion payloads (animation/interaction + optional `new_style_tags`).
-- `scripts/propose_upgrade.py`: generate manual-review upgrade candidates from pipeline output.
-- `scripts/review_upgrade_candidate.py`: validate upgrade candidate schema and gate requirements.
-- `references/benchmark-baseline.json`: default baseline snapshot for CI gate.
-- `references/github-actions-regression-gate.yml`: GitHub Actions template for regression automation.
-- `references/taxonomy/style-tag-registry.json`: controlled style tag dictionary used by routing validation.
-- `references/taxonomy/*`: site-type routing, controlled tags, alias mapping, and style-tag overrides.
+- Styles span three axes: brand-inspired (Apple, Stripe, Linear, Notion,
+  GitHub), aesthetic (Glassmorphism, Neo-Brutalist, Cyberpunk, Vaporwave), and
+  cultural (Bauhaus, Ghibli, Wabi-Sabi, Ukiyo-e).
+- Everything is free and open source (MIT). Full docs: https://www.stylekit.top/developers

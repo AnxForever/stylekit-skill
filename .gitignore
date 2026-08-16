@@ -1,12 +1,18 @@
-__pycache__/
-*.pyc
-tmp/
-*.log
-.DS_Store
+# Node
 node_modules/
-.pytest_cache/
-*.tgz
-.spec-workflow/
-AGENTS.md
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Local agent skill installs (keep the repo single-skill)
+skills/
+.claude/
 .agents/
-.codex/
+.factory/
+.kiro/
