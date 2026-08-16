@@ -16,3 +16,5 @@ skills/
 .agents/
 .factory/
 .kiro/
+__pycache__/
+*.pyc
