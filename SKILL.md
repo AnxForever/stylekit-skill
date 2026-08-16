@@ -9,10 +9,37 @@ Apply StyleKit's 146 curated visual styles to generated UI. Use the catalog, fet
 
 ## Workflow
 
-1. **Pick a style** — match the user's intent to a catalog slug.
-2. **Fetch the full spec** — pull tokens, recipes, and AI rules for that slug.
-3. **Install the theme** (optional) — drop the shadcn registry theme into the project.
-4. **Generate with the rules** — use the style's exact tokens and do/don't lists.
+1. **Detect project context** — know the target project's stack before generating.
+2. **Pick a style** — match the user's intent to a catalog slug.
+3. **Fetch the full spec** — pull tokens, recipes, and AI rules for that slug.
+4. **Install the theme** (optional) — drop the shadcn registry theme into the project.
+5. **Generate with the rules** — use the style's exact tokens and do/don't lists.
+
+## Task routing
+
+Route by what the user actually asked for:
+
+- **New UI** (page, component, dashboard, landing page) → full workflow below.
+- **Restyle / fix existing UI** ("this looks generic", "make it feel more Stripe") → Steps 0, 2, 3, then edit only the parts that violate the style's tokens and rules; keep the existing structure and states unless asked otherwise. See [references/design-principles.md](references/design-principles.md) iteration modes.
+- **Migrate from one style to another** → fetch both specs, diff their tokens and forbidden lists, then update classes style-by-style. Never mix tokens from both styles.
+- **Review / audit style consistency** → fetch the style spec, then check every component against doList/dontList and the token table. Report violations concretely (file, element, class).
+
+## Step 0 — Detect project context
+
+Before generating, run the detector in the target project directory:
+
+```bash
+python3 scripts/detect-project.py   # run from the project root, or pass a path
+```
+
+Use the output to adapt generation:
+
+- **framework** (`next`/`react`/`vue`/`svelte`/`vanilla`) — match component style to the framework (client/server components for Next, etc.).
+- **tailwind.version** — v4 uses CSS-first config (`@theme` in CSS, no `tailwind.config.js`); v3 uses the config file. The shadcn registry install requires Tailwind v4; if the project is v3, install the theme manually from the spec's `cssVars` instead.
+- **shadcn.installedComponents** — prefer reusing installed components over generating new ones; match the project's alias paths.
+- **reactVersion** — target the project's React version; do not use APIs the version doesn't support.
+
+If the detector reports a stack you did not expect (e.g. the user said "React" but the project is Vue), stop and confirm with the user before generating.
 
 ## Step 1 — Pick a style
 
@@ -64,11 +91,13 @@ npx shadcn add https://www.stylekit.top/r/<slug>.json
 
 Requires a `tsconfig.json` in the target project. Injects the style's light + dark `cssVars` into `globals.css`. Full guide: https://www.stylekit.top/developers
 
+If the project is not Tailwind v4 (per Step 0), do not run the registry install; apply the spec's `cssVars` and token classes manually.
+
 ## Step 4 — Generate with the style's rules
 
 1. Use the style's **design tokens** (colors, spacing, typography, shadows, radii) — do not invent your own values.
 2. Follow the **AI rules** and **doList/dontList** — they encode what makes the style read as intentional (e.g. Neo-Brutalist: thick borders, hard shadows, no rounded corners; Glassmorphism: high blur, translucency, inner glow).
-3. Use **component templates** and **recipes** as starting points; adapt to the user's content.
+3. Use **component templates** and **recipes** as starting points; adapt to the user's content and to the project's detected stack (Step 0).
 4. Keep the style consistent across every component in the session, including responsive breakpoints (mobile-first).
 
 ### Good — uses exact token classes
@@ -107,6 +136,16 @@ Requires a `tsconfig.json` in the target project. Injects the style's light + da
 - **Don't hardcode hex values.** Use the style's `colors` object and token classes.
 - **Don't rely on memory — always fetch the spec.** Styles get updated; stale data leads to violations.
 
+## Don't skip these — and why
+
+| "I can skip this because…" | Why you can't |
+|----------------------------|---------------|
+| "I already know neo-brutalist's tokens." | The spec changes with every release; your memory is a snapshot. Fetch it. |
+| "This is a tiny button, tokens don't matter." | One off-token class breaks the whole style read. Every component must pass doList/dontList. |
+| "The project looks like plain React, no need to detect." | Framework, Tailwind version, and existing shadcn components change how you generate. Run Step 0. |
+| "I'll just use `bg-white` for glassmorphism, close enough." | `bg-white` is on glassmorphism's forbidden list. Exact tokens or it's not the style. |
+| "The user asked for a quick tweak, no spec needed." | A tweak that ignores the spec silently drifts the UI away from the style. Fetch it. |
+
 ## Quality gate
 
 Before delivering generated UI, apply the checks in
@@ -114,8 +153,23 @@ Before delivering generated UI, apply the checks in
 signature test, and token test. Keep the style identity strong, meet the accessibility baseline,
 and avoid the anti-pattern blacklist.
 
+## Pre-delivery checklist
+
+Confirm each item with concrete evidence before presenting the result:
+
+- [ ] Style spec was fetched (not guessed) — cite the slug and that `fetch-style.py` ran.
+- [ ] Project context was detected (Step 0) — cite the detected framework/Tailwind version.
+- [ ] Every generated class comes from the style's tokens or explicit allowed values.
+- [ ] No class from the style's `forbidden` list is present in the output.
+- [ ] doList items are all satisfied; dontList items are all absent.
+- [ ] `prefers-reduced-motion` is respected if the style animates.
+- [ ] Colors are the style's palette (primary/secondary/accent), not invented hexes.
+- [ ] Swap test passed — replacing the signature classes with defaults would visibly change the identity.
+- [ ] Responsive behavior is mobile-first and consistent across breakpoints.
+
 ## Resources
 
 - `references/style-signatures.md` — visual traits, forbidden, and required classes for popular styles
 - `references/design-principles.md` — quality bar: intent-first generation, token hierarchy, accessibility baseline, pre-delivery validation
 - `scripts/fetch-style.py` — fetch a style's spec from the API and print a compact code-generation reference
+- `scripts/detect-project.py` — detect the target project's framework, Tailwind version, and shadcn setup

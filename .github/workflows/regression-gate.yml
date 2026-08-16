@@ -50,3 +50,15 @@ jobs:
           python3 scripts/fetch-style.py glassmorphism --tokens | grep -q "TOKENS" || { echo "fetch-style.py failed"; exit 1; }
           python3 scripts/fetch-style.py neo-brutalist --recipes | grep -q "STYLE:" || { echo "fetch-style.py --recipes failed"; exit 1; }
           python3 scripts/fetch-style.py --search cyberpunk | grep -q "vaporwave" || { echo "fetch-style.py --search failed"; exit 1; }
+
+      - name: Test scripts/detect-project.py
+        run: |
+          mkdir -p /tmp/ds-test && cd /tmp/ds-test
+          echo '{"dependencies": {"next": "15.1.0", "tailwindcss": "4.0.0"}}' > package.json
+          echo '{"aliases": {"components": "components"}}' > components.json
+          mkdir -p components/button
+          cd -
+          python3 scripts/detect-project.py /tmp/ds-test | grep -q '"framework": "next"' || { echo "detect-project.py framework detection failed"; exit 1; }
+          python3 scripts/detect-project.py /tmp/ds-test | grep -q '"version": 4' || { echo "detect-project.py tailwind detection failed"; exit 1; }
+          python3 scripts/detect-project.py /tmp/ds-test | grep -q '"detected": true' || { echo "detect-project.py shadcn detection failed"; exit 1; }
+          python3 scripts/detect-project.py /tmp/empty-proj 2>/dev/null || mkdir -p /tmp/empty-proj && python3 scripts/detect-project.py /tmp/empty-proj | grep -q '"framework": null' || { echo "detect-project.py empty-dir failed"; exit 1; }
