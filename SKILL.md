@@ -107,7 +107,15 @@ Requires a `tsconfig.json` in the target project. Injects the style's light + da
 - **Don't hardcode hex values.** Use the style's `colors` object and token classes.
 - **Don't rely on memory — always fetch the spec.** Styles get updated; stale data leads to violations.
 
+## Quality gate
+
+Before delivering generated UI, apply the checks in
+[references/design-principles.md](references/design-principles.md): swap test, squint test,
+signature test, and token test. Keep the style identity strong, meet the accessibility baseline,
+and avoid the anti-pattern blacklist.
+
 ## Resources
 
 - `references/style-signatures.md` — visual traits, forbidden, and required classes for popular styles
+- `references/design-principles.md` — quality bar: intent-first generation, token hierarchy, accessibility baseline, pre-delivery validation
 - `scripts/fetch-style.py` — fetch a style's spec from the API and print a compact code-generation reference
