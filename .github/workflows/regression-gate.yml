@@ -61,4 +61,30 @@ jobs:
           python3 scripts/detect-project.py /tmp/ds-test | grep -q '"framework": "next"' || { echo "detect-project.py framework detection failed"; exit 1; }
           python3 scripts/detect-project.py /tmp/ds-test | grep -q '"version": 4' || { echo "detect-project.py tailwind detection failed"; exit 1; }
           python3 scripts/detect-project.py /tmp/ds-test | grep -q '"detected": true' || { echo "detect-project.py shadcn detection failed"; exit 1; }
-          python3 scripts/detect-project.py /tmp/empty-proj 2>/dev/null || mkdir -p /tmp/empty-proj && python3 scripts/detect-project.py /tmp/empty-proj | grep -q '"framework": null' || { echo "detect-project.py empty-dir failed"; exit 1; }
+          mkdir -p /tmp/empty-proj && python3 scripts/detect-project.py /tmp/empty-proj | grep -q '"framework": null' || { echo "detect-project.py empty-dir failed"; exit 1; }
+
+      - name: Test scripts/verify-spec.py
+        run: |
+          python3 scripts/verify-spec.py neo-brutalist | grep -q "Verified 1 style" || { echo "verify-spec.py single-style failed"; exit 1; }
+          python3 scripts/verify-spec.py neo-brutalist --json | grep -q '"checked": 1' || { echo "verify-spec.py json mode failed"; exit 1; }
+
+      - name: Test scripts/eval-check.py
+        run: |
+          cat > /tmp/compliant.tsx << 'EOF'
+          export function Button() {
+            return <button className="px-6 py-3 bg-[#ff006e] text-white font-black border-4 border-black rounded-none">OK</button>;
+          }
+          EOF
+          cat > /tmp/violating.tsx << 'EOF'
+          export function Button() {
+            return <button className="px-6 py-3 bg-blue-500 rounded-lg shadow-lg">Bad</button>;
+          }
+          EOF
+          python3 scripts/eval-check.py neo-brutalist /tmp/compliant.tsx || { echo "eval-check.py rejected compliant code"; exit 1; }
+          python3 scripts/eval-check.py neo-brutalist /tmp/violating.tsx && { echo "eval-check.py accepted violating code"; exit 1; }
+
+      - name: Run with/without-skill benchmark
+        run: |
+          python3 scripts/benchmark.py | tee /tmp/benchmark.txt
+          grep -q "with-skill pass rate:    4/4" /tmp/benchmark.txt || { echo "benchmark regressed: with-skill must score 4/4"; exit 1; }
+          grep -q "without-skill pass rate: 0/4" /tmp/benchmark.txt || { echo "benchmark baseline must score 0/4 (fixture drift)"; exit 1; }
