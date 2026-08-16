@@ -1,0 +1,41 @@
+name: StyleKit Skill Regression Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  regression-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          head -1 SKILL.md | grep -q '^---$' || { echo "SKILL.md must start with YAML frontmatter"; exit 1; }
+          grep -q '^name: stylekit$' SKILL.md || { echo "SKILL.md missing 'name: stylekit'"; exit 1; }
+          grep -q '^description:' SKILL.md || { echo "SKILL.md missing description"; exit 1; }
+
+      - name: Reject unpublished-package wording
+        run: |
+          if grep -Eiq 'not (yet )?published|unpublished|repository[- ]only|尚未发布' SKILL.md; then
+            echo "SKILL.md must not claim packages are unpublished (they are public beta on npm)";
+            exit 1;
+          fi
+
+      - name: Verify referenced endpoints return 200
+        run: |
+          for url in \
+            https://www.stylekit.top/api/styles \
+            https://www.stylekit.top/r/glassmorphism.json \
+            https://www.stylekit.top/llms-full.txt \
+            https://www.stylekit.top/api/styles/neo-brutalist; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url")
+            echo "$code $url"
+            [ "$code" = "200" ] || { echo "FAIL: $url returned $code"; exit 1; }
+          done
