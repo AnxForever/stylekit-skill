@@ -5,7 +5,7 @@ description: Apply a specific, consistent visual style to frontend UI you are ge
 
 # StyleKit
 
-Apply StyleKit's 146 curated visual styles to generated UI. Use the catalog, fetch the exact spec, install the theme, and honor the style's rules.
+Apply StyleKit's 148 curated visual styles to generated UI. Use the catalog, fetch the exact spec, install the theme, and honor the style's rules.
 
 ## Workflow
 
