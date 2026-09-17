@@ -16,7 +16,7 @@ catalog for the contradictions that cause those failures:
   - Missing core fields (doList/dontList/aiRules/components/tokens).
 
 Usage:
-    verify-spec.py [slug]          # check one style (default: all 146)
+    verify-spec.py [slug]          # check one style (default: all 148)
     verify-spec.py --json [slug]   # machine-readable report
 
 Exit code 0 = clean, 1 = violations found (or network error).
