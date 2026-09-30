@@ -60,12 +60,14 @@ Fetch the machine-readable spec for the chosen slug — do not guess tokens or r
 ```bash
 python3 scripts/fetch-style.py <slug>            # full spec: tokens, recipes, rules
 python3 scripts/fetch-style.py <slug> --tokens   # tokens only
-python3 scripts/fetch-style.py <slug> --recipes  # recipes only
+python3 scripts/fetch-style.py <slug> --recipes  # recipes, parameters, slots and states
+python3 scripts/fetch-style.py <slug> --json > style-spec.json  # save the exact input
 ```
 
 The script prints a compact spec for code generation. Raw endpoints are also available:
 
-- Full pack: `GET https://www.stylekit.top/api/styles/{slug}`
+- Implementation brief: `GET https://www.stylekit.top/api/styles/{slug}/brief` (schema `stylekit-brief-v1`; the script falls back to the legacy full pack only on HTTP 404)
+- Legacy full pack: `GET https://www.stylekit.top/api/styles/{slug}`
 - Markdown: `GET https://www.stylekit.top/api/styles/{slug}/md`
 - Tokens: `GET https://www.stylekit.top/api/styles/{slug}/tokens`
 - Recipes: `GET https://www.stylekit.top/api/styles/{slug}/recipes`
@@ -160,10 +162,23 @@ python3 scripts/eval-check.py <slug> <file>                  # check a file
 python3 scripts/eval-check.py <slug> <file> --component button   # also enforce required classes for a declared component
 ```
 
-`eval-check.py` reports forbidden classes, off-palette colors, and (with `--component`) missing
-required classes. It treats the style's own component templates as the reference implementation:
-a required entry is only enforced when the matching template uses it, so a spec-data inconsistency
-does not produce false failures on generated code.
+`eval-check.py` checks exact forbidden utilities and patterns after resolving variants and
+important modifiers. It uses the brief's merged `lintRules`, including curated overrides;
+legacy specs expose token rules only, which is disclosed in the report. Palette and visual
+quality still require manual review.
+
+Save a spec once, then use that same input for generation and verification:
+
+```bash
+python3 scripts/eval-check.py <slug> <file> --spec style-spec.json --json
+python3 scripts/eval-check.py <slug> button.tsx --spec style-spec.json --component button --strict
+```
+
+Exit codes: `0` pass, `1` fail, `2` input/network error, `3` inconclusive. Runtime expressions
+are inconclusive unless a statically visible forbidden utility already proves a violation.
+Required checks apply to the whole input file. Use a single component snippet for `--strict`;
+a hover-only utility does not satisfy its default requirement. A static pass covers these
+class rules only; it does not certify visual quality, CSS compilation, or accessibility.
 
 ## Pre-delivery checklist
 
@@ -178,7 +193,7 @@ Confirm each item with concrete evidence before presenting the result:
 - [ ] Colors are the style's palette (primary/secondary/accent), not invented hexes.
 - [ ] Swap test passed — replacing the signature classes with defaults would visibly change the identity.
 - [ ] Responsive behavior is mobile-first and consistent across breakpoints.
-- [ ] `eval-check.py` reported no violations for the delivered files.
+- [ ] `eval-check.py` returned exit 0 for static checks; runtime-dependent styles were reviewed with their values resolved.
 
 ## Spec data health
 
@@ -186,8 +201,8 @@ The catalog is community-curated; occasionally a style's required table or a com
 contains an internal contradiction (e.g. a template uses a class the style forbids, or a template
 carries a hex not in the palette). When you hit one:
 
-- **Trust the component template** over the required table — the template is the verified
-  reference implementation.
+- **Report the conflicting rules and classes.** Templates are starting points, not proof of
+  correctness. Do not suppress forbidden checks to make a template pass.
 - **Report the inconsistency** rather than silently working around it: run
   `python3 scripts/verify-spec.py <slug>` to enumerate the exact contradictions, and tell the
   user (or open an issue on github.com/AnxForever/stylekit) so the catalog can be fixed.
@@ -198,6 +213,6 @@ carries a hex not in the palette). When you hit one:
 - `references/design-principles.md` — quality bar: intent-first generation, token hierarchy, accessibility baseline, pre-delivery validation
 - `scripts/fetch-style.py` — fetch a style's spec from the API and print a compact code-generation reference
 - `scripts/detect-project.py` — detect the target project's framework, Tailwind version, and shadcn setup
-- `scripts/eval-check.py` — mechanical compliance gate for generated code (forbidden, palette, required)
+- `scripts/eval-check.py` — static rule gate for generated code (forbidden utilities/patterns, optional strict requirements)
 - `scripts/verify-spec.py` — audit a style's spec for internal contradictions (data health)
-- `scripts/benchmark.py` — with/without-skill pass-rate comparison (regression suite)
+- `scripts/benchmark.py` — synthetic fixture regression and optional model A/B experiment; fixture results do not measure real generation quality

@@ -51,9 +51,9 @@ Different paths for different requests:
 | `fetch-style.py` | Fetch a style spec from the public API and print a code-generation-oriented reference |
 | `verify-spec.py` | Check API specs for internal consistency — **when the data contradicts itself, the agent invents tokens and breaks style rules** |
 | `eval-check.py` | **The acceptance detector**: feed it code plus a style slug and it reports every concrete rule violation (forbidden classes, missing items) |
-| `benchmark.py` | With-skill vs without-skill generation quality (fixture mode by default, CI-safe) |
+| `benchmark.py` | Synthetic fixture regression; optional real model comparison with `--llm` |
 
-`eval-check.py` and `benchmark.py` are the point of the design: **style constraints are detected, not assumed.** The benchmark adds a reproducible comparison for whether the skill itself is pulling its weight.
+`eval-check.py` and `benchmark.py` are the point of the design: **style constraints are detected, not assumed.** Default fixture results check the detector and reference data; they do not measure model design quality. Use `--llm` for a model comparison.
 
 ## References
 

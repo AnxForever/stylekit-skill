@@ -33,6 +33,38 @@ def read_json(path: Path):
         return None
 
 
+IGNORED = {"node_modules", ".next", ".git", "dist", "build", "coverage", ".turbo", ".venv"}
+
+
+def source_files(root: Path):
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = sorted(d for d in dirs if d not in IGNORED and not (Path(directory) / d).is_symlink())
+        for filename in sorted(files):
+            yield Path(directory) / filename
+
+
+def resolve_alias(root: Path, alias: str) -> Path | None:
+    config = read_json(root / "tsconfig.json") or read_json(root / "jsconfig.json") or {}
+    compiler = config.get("compilerOptions", {})
+    base = root / compiler.get("baseUrl", ".")
+    for pattern, targets in compiler.get("paths", {}).items():
+        if not targets:
+            continue
+        prefix, star, suffix = pattern.partition("*")
+        if star and alias.startswith(prefix) and alias.endswith(suffix):
+            middle = alias[len(prefix):len(alias) - len(suffix) if suffix else None]
+            return (base / targets[0].replace("*", middle)).resolve()
+        if pattern == alias:
+            return (base / targets[0]).resolve()
+    if alias.startswith("@/"):
+        relative = alias[2:]
+        for candidate in (root / relative, root / "src" / relative):
+            if candidate.exists():
+                return candidate
+        return None
+    return root / alias if not alias.startswith("@") else None
+
+
 def detect(directory: str) -> dict:
     root = Path(directory).resolve()
     pkg = read_json(root / "package.json") or {}
@@ -60,8 +92,7 @@ def detect(directory: str) -> dict:
 
     # Tailwind v4 config lives in CSS (@theme / @import "tailwindcss")
     css_files = sorted(
-        p for p in root.rglob("*.css")
-        if "node_modules" not in p.parts and ".next" not in p.parts
+        p for p in source_files(root) if p.suffix == ".css"
     )
     for css in css_files[:20]:
         try:
@@ -79,12 +110,13 @@ def detect(directory: str) -> dict:
         shadcn["detected"] = True
         shadcn["componentsJson"] = str(comp_json.relative_to(root))
         shadcn["aliases"] = data.get("aliases")
-        comp_dir = data.get("aliases", {}).get("components", "components")
+        aliases = data.get("aliases") or {}
+        comp_dir = aliases.get("ui") or f"{aliases.get('components', 'components')}/ui"
         if comp_dir:
-            comp_root = root / comp_dir
-            if comp_root.exists():
+            comp_root = resolve_alias(root, comp_dir)
+            if comp_root is not None and comp_root.is_dir():
                 shadcn["installedComponents"] = sorted(
-                    p.stem for p in comp_root.iterdir() if p.is_dir()
+                    p.stem for p in comp_root.iterdir() if p.is_file() and p.suffix in {".tsx", ".jsx", ".vue", ".svelte", ".ts", ".js"}
                 )
 
     return {
@@ -92,7 +124,7 @@ def detect(directory: str) -> dict:
         "reactVersion": deps.get("react"),
         "tailwind": tailwind,
         "shadcn": shadcn,
-        "styleKitInstalled": bool(deps.get("@stylekit/core") or deps.get("stylekit")),
+        "styleKitInstalled": any(name in deps for name in ("stylekit-core", "@stylekit/core", "stylekit")),
         "hasGlobalCss": bool(css_files),
         "cssFiles": [str(p.relative_to(root)) for p in css_files[:20]],
     }
