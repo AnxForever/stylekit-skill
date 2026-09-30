@@ -6,8 +6,7 @@ Two modes:
 
 1. Fixture mode (default, CI-safe): deterministic templates that exercise
    style identity. without-skill uses a generic Tailwind guess (no spec);
-   with-skill uses the style's own component template with off-palette
-   colors corrected. No LLM calls, no API key.
+   with-skill uses the style's unmodified component template. No LLM calls, no API key.
 
 2. LLM mode (--llm): calls a real model for BOTH arms of each task.
    without-skill prompt has no spec; with-skill prompt includes the fetched
@@ -31,6 +30,8 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+import importlib.util
+import tempfile
 
 HERE = Path(__file__).resolve().parent
 EVAL_CHECK = HERE / "eval-check.py"
@@ -67,22 +68,22 @@ TASKS = [
 
 
 def fetch_spec(slug: str) -> dict:
-    with urllib.request.urlopen(
-        f"https://www.stylekit.top/api/styles/{slug}", timeout=20
-    ) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    module_spec = importlib.util.spec_from_file_location("stylekit_fetch", FETCH)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module.fetch_spec(slug)
 
 
-def score(slug: str, component: str, code: str) -> tuple[int, list[str]]:
-    proc = subprocess.run(
-        [sys.executable, str(EVAL_CHECK), slug, "--stdin", "--component", component],
-        input=code,
-        text=True,
-        capture_output=True,
-    )
-    violations = [
-        line for line in proc.stdout.splitlines() if line.strip()
-    ] if proc.returncode != 0 else []
+def score(slug: str, component: str, code: str, spec: dict | None = None) -> tuple[int, list[str]]:
+    # Both arms use exactly the same fetched inputs; do not refetch mid-experiment.
+    with tempfile.TemporaryDirectory(prefix="stylekit-benchmark-") as directory:
+        spec_file = Path(directory) / "spec.json"
+        spec_file.write_text(json.dumps(spec if spec is not None else fetch_spec(slug)), encoding="utf-8")
+        proc = subprocess.run(
+            [sys.executable, str(EVAL_CHECK), slug, "--stdin", "--component", component, "--spec", str(spec_file)],
+            input=code, text=True, capture_output=True,
+        )
+    violations = [line for line in (proc.stdout + proc.stderr).splitlines() if line.strip()] if proc.returncode != 0 else []
     return proc.returncode, violations
 
 
@@ -134,6 +135,8 @@ def spec_prompt(task: dict, spec: dict, component: str) -> str:
     return (
         f"{task['prompt']}\n\n"
         f"Apply the '{spec.get('slug')}' style. These are the exact constraints:\n"
+        f"AI rules: {spec.get('aiRules', '')}\n"
+        f"Merged lint rules: {json.dumps(spec.get('lintRules') or {}, ensure_ascii=False)}\n"
         f"- Palette: primary {colors.get('primary')}, secondary {colors.get('secondary')}, "
         f"accent {', '.join(colors.get('accent', []))}\n"
         f"- Forbidden classes: {', '.join(forbidden[:12])}\n"
@@ -150,7 +153,7 @@ def run_task(task: dict, llm: bool = False, model: str = "gpt-4o-mini") -> dict:
     spec = fetch_spec(slug)
 
     if llm:
-        baseline_code = llm_complete(prompt, model)
+        baseline_code = llm_complete(f"{prompt}\nApply the {slug} style. Generate one React {component} using Tailwind CSS.", model)
         skill_code = llm_complete(spec_prompt(task, spec, component), model)
     else:
         # fixture mode: deterministic reference implementations
@@ -163,31 +166,21 @@ export function {component}() {{
   );
 }}
 """
-        colors = spec.get("colors") or {}
-        palette = []
-        for key in ("primary", "secondary"):
-            v = colors.get(key)
-            if isinstance(v, str) and v.startswith("#"):
-                palette.append(v)
-        palette += [a for a in colors.get("accent", []) if isinstance(a, str) and a.startswith("#")]
-        template = (spec.get("components") or {}).get(component, {}).get("code", "")
-        if palette:
-            fallback = palette[0]
-            template = HEX_RE.sub(
-                lambda m: m.group(0).lower() if m.group(0).lower() in {p.lower() for p in palette} else fallback,
-                template,
-            )
-        skill_code = template.replace("</" + component + ">", f"</{component}>")
+        # Use unmodified source templates: correcting them here would hide data drift.
+        skill_code = (spec.get("components") or {}).get(component, {}).get("code", "")
 
-    _, base_violations = score(slug, component, baseline_code)
-    skill_rc, skill_violations = score(slug, component, skill_code)
+    base_rc, base_violations = score(slug, component, baseline_code, spec)
+    skill_rc, skill_violations = score(slug, component, skill_code, spec)
 
     return {
         "id": task["id"],
         "slug": slug,
         "component": component,
         "mode": "llm" if llm else "fixture",
-        "baseline": {"pass": len(base_violations) == 0, "violations": base_violations},
+        "provenance": spec.get("provenance"),
+        "baseline_exit_code": base_rc,
+        "with_skill_exit_code": skill_rc,
+        "baseline": {"pass": base_rc == 0, "violations": base_violations},
         "with_skill": {"pass": skill_rc == 0, "violations": skill_violations},
     }
 
@@ -219,9 +212,15 @@ def main() -> None:
         print("error: --llm requires OPENAI_API_KEY")
         sys.exit(2)
 
+    if not tasks:
+        print("error: no matching tasks", file=sys.stderr)
+        sys.exit(2)
+
     results = [run_task(t, llm=llm, model=model) for t in tasks]
     mode_label = "llm" if llm else "fixture"
 
+    if not llm:
+        print("Synthetic fixture regression; these pass rates do not measure model generation quality.")
     print(f"mode: {mode_label}" + (f" (model: {model})" if llm else ""))
     print(f"{'task':<24} {'without-skill':<14} {'with-skill':<12}")
     print("-" * 52)
@@ -240,6 +239,10 @@ def main() -> None:
     total = len(results)
     print(f"without-skill pass rate: {base_pass}/{total}")
     print(f"with-skill pass rate:    {skill_pass}/{total}")
+    if any(r["baseline_exit_code"] in (2, 3) or r["with_skill_exit_code"] in (2, 3) for r in results):
+        sys.exit(2)
+    if not llm and skill_pass != total:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

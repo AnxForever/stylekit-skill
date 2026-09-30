@@ -51,9 +51,9 @@
 | `fetch-style.py` | 从公开 API 拉取风格规格，输出面向代码生成的紧凑参考 |
 | `verify-spec.py` | 校验 API 规格的内部一致性——**数据自相矛盾时，agent 就会编造 tokens、违反风格规则** |
 | `eval-check.py` | **验收检测器**：喂给它代码 + 风格 slug，逐条报告规则违规（禁用 class、缺失项） |
-| `benchmark.py` | 有 skill vs 无 skill 的生成质量对比（默认 fixture 模式，CI 安全） |
+| `benchmark.py` | 合成模板回归测试，或使用 `--llm` 运行真实模型对照实验 |
 
-`eval-check.py` 和 `benchmark.py` 是这套设计的重点：**风格约束不是靠「假设模型写对了」，而是靠检测。** 后者还提供了一组可复现的对照，用来衡量 skill 本身到底有没有用。
+`eval-check.py` 和 `benchmark.py` 是这套设计的重点：**风格约束不是靠「假设模型写对了」，而是靠检测。** 默认 fixture 仅验证检测器和参考数据；其通过率不能代表真实模型的设计质量。`--llm` 模式才会调用模型进行对照实验。
 
 ## 参考文档
 
