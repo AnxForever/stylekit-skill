@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import argparse
 import urllib.request
 from pathlib import Path
 import importlib.util
@@ -67,11 +68,11 @@ TASKS = [
 ]
 
 
-def fetch_spec(slug: str) -> dict:
+def fetch_spec(slug: str, base_url: str = "https://www.stylekit.top/api/styles") -> dict:
     module_spec = importlib.util.spec_from_file_location("stylekit_fetch", FETCH)
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
-    return module.fetch_spec(slug)
+    return module.fetch_spec(slug, base_url)
 
 
 def score(slug: str, component: str, code: str, spec: dict | None = None) -> tuple[int, list[str]]:
@@ -146,11 +147,11 @@ def spec_prompt(task: dict, spec: dict, component: str) -> str:
     )
 
 
-def run_task(task: dict, llm: bool = False, model: str = "gpt-4o-mini") -> dict:
+def run_task(task: dict, llm: bool = False, model: str = "gpt-4o-mini", base_url: str = "https://www.stylekit.top/api/styles") -> dict:
     slug = task["slug"]
     component = task["component"]
     prompt = task["prompt"]
-    spec = fetch_spec(slug)
+    spec = fetch_spec(slug, base_url)
 
     if llm:
         baseline_code = llm_complete(f"{prompt}\nApply the {slug} style. Generate one React {component} using Tailwind CSS.", model)
@@ -186,29 +187,22 @@ export function {component}() {{
 
 
 def main() -> None:
-    args = sys.argv[1:]
-    if "--list" in args:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--llm", action="store_true")
+    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--task")
+    parser.add_argument("--base-url", default="https://www.stylekit.top/api/styles", help="StyleKit API base used to fetch specs")
+    args = parser.parse_args()
+    if args.list:
         for t in TASKS:
             print(f"  {t['id']}  ({t['slug']} / {t['component']})")
         return
-    if "--help" in args or "-h" in args:
-        print(__doc__)
-        return
-
-    llm = "--llm" in args
-    model = "gpt-4o-mini"
-    if "--model" in args:
-        idx = args.index("--model")
-        if idx + 1 < len(args):
-            model = args[idx + 1]
-
     tasks = TASKS
-    if "--task" in args:
-        idx = args.index("--task")
-        task_id = args[idx + 1] if idx + 1 < len(args) else ""
-        tasks = [t for t in TASKS if t["id"] == task_id]
+    if args.task:
+        tasks = [t for t in TASKS if t["id"] == args.task]
 
-    if llm and not os.environ.get("OPENAI_API_KEY"):
+    if args.llm and not os.environ.get("OPENAI_API_KEY"):
         print("error: --llm requires OPENAI_API_KEY")
         sys.exit(2)
 
@@ -216,12 +210,12 @@ def main() -> None:
         print("error: no matching tasks", file=sys.stderr)
         sys.exit(2)
 
-    results = [run_task(t, llm=llm, model=model) for t in tasks]
-    mode_label = "llm" if llm else "fixture"
+    results = [run_task(t, llm=args.llm, model=args.model, base_url=args.base_url) for t in tasks]
+    mode_label = "llm" if args.llm else "fixture"
 
-    if not llm:
+    if not args.llm:
         print("Synthetic fixture regression; these pass rates do not measure model generation quality.")
-    print(f"mode: {mode_label}" + (f" (model: {model})" if llm else ""))
+    print(f"mode: {mode_label}" + (f" (model: {args.model})" if args.llm else ""))
     print(f"{'task':<24} {'without-skill':<14} {'with-skill':<12}")
     print("-" * 52)
     for r in results:
@@ -241,7 +235,7 @@ def main() -> None:
     print(f"with-skill pass rate:    {skill_pass}/{total}")
     if any(r["baseline_exit_code"] in (2, 3) or r["with_skill_exit_code"] in (2, 3) for r in results):
         sys.exit(2)
-    if not llm and skill_pass != total:
+    if not args.llm and skill_pass != total:
         sys.exit(1)
 
 

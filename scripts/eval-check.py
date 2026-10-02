@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+from spec_input import load_spec_file
+
 
 def load_script(name):
     module_spec = importlib.util.spec_from_file_location(name.replace("-", "_"), Path(__file__).with_name(name + ".py"))
@@ -212,7 +214,8 @@ def lint_code(spec: dict, code: str, component: str | None = None, strict: bool 
     uncertain = not rules["sources"] or not extracted or coverage["dynamicAttributes"] or unsupported
     status = "fail" if failed else "inconclusive" if uncertain else "pass"
     return {"slug": spec.get("slug", ""), "ok": status == "pass", "status": status, "violations": violations,
-            "missingRequired": missing, "checkedClasses": len(extracted), "ruleSources": rules["sources"], "coverage": coverage, "warnings": warnings}
+            "missingRequired": missing, "checkedClasses": len(extracted), "ruleSources": rules["sources"],
+            "specSource": spec.get("_stylekitSource"), "coverage": coverage, "warnings": warnings}
 
 
 def eval_code(spec: dict, code: str, component: str | None = None) -> list:
@@ -232,7 +235,10 @@ def main():
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--stdin", action="store_true")
     source.add_argument("--dir", type=Path)
-    parser.add_argument("--spec", type=Path)
+    spec_inputs = parser.add_mutually_exclusive_group()
+    spec_inputs.add_argument("--spec", type=Path, help="Use a saved CLI/API brief or legacy spec")
+    spec_inputs.add_argument("--from-file", type=Path, help="Use a saved MCP tool result JSON envelope")
+    parser.add_argument("--base-url", default=BASE, help="StyleKit API base used when no spec file is supplied")
     parser.add_argument("--component", choices=("button", "card", "input"))
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -244,7 +250,12 @@ def main():
     if args.strict and not args.component:
         parser.error("--strict requires --component")
     try:
-        spec = json.loads(args.spec.read_text(encoding="utf-8")) if args.spec else fetcher.fetch_spec(args.slug)
+        if args.spec:
+            spec = load_spec_file(args.spec, args.slug)
+        elif args.from_file:
+            spec = load_spec_file(args.from_file, args.slug, from_mcp=True)
+        else:
+            spec = fetcher.fetch_spec(args.slug, args.base_url)
         if spec.get("slug") != args.slug:
             raise ValueError("Spec slug does not match the requested style")
         if args.stdin:
