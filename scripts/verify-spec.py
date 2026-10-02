@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 import importlib.util
 
+from spec_input import load_spec_file, normalize_base_url
+
 module_spec = importlib.util.spec_from_file_location("stylekit_eval", Path(__file__).with_name("eval-check.py"))
 evaluator = importlib.util.module_from_spec(module_spec)
 module_spec.loader.exec_module(evaluator)
@@ -45,33 +47,37 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("slug", nargs="?")
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--spec", type=Path, help="Check a saved spec without network access")
+    sources = parser.add_mutually_exclusive_group()
+    sources.add_argument("--spec", type=Path, help="Check a saved CLI/API brief or legacy spec")
+    sources.add_argument("--from-file", type=Path, help="Check a saved MCP tool result JSON envelope")
+    parser.add_argument("--base-url", default=BASE, help="StyleKit API base used for online checks")
     args = parser.parse_args()
     try:
-        if args.spec:
-            spec = json.loads(args.spec.read_text(encoding="utf-8"))
-            if args.slug and spec.get("slug") != args.slug:
-                raise ValueError("Spec slug does not match requested style")
+        if args.spec or args.from_file:
+            spec_path = args.spec or args.from_file
+            spec = load_spec_file(spec_path, args.slug, from_mcp=bool(args.from_file))
             specs, requested = [spec], [spec.get("slug", "?")]
         else:
-            requested = [args.slug] if args.slug else [style["slug"] for style in get_json(BASE).get("styles", [])]
+            base = normalize_base_url(args.base_url, BASE)
+            requested = [args.slug] if args.slug else [style["slug"] for style in get_json(base).get("styles", [])]
             if not requested:
                 raise ValueError("Catalogue returned no styles")
             specs = []
         fetch_errors = {}
-        if not args.spec:
+        if not (args.spec or args.from_file):
             for slug in requested:
                 try:
-                    specs.append(evaluator.fetcher.fetch_spec(slug))
+                    specs.append(evaluator.fetcher.fetch_spec(slug, args.base_url))
                 except (OSError, ValueError) as error:
                     fetch_errors[slug] = str(error)
-        issues_by_style, notices_by_style = {}, {}
+        issues_by_style, notices_by_style, sources_by_style = {}, {}, {}
         inconclusive = bool(fetch_errors)
         for spec in specs:
             slug = spec.get("slug", "?")
             issues, notices = check_spec(spec)
             issues_by_style[slug] = issues
             notices_by_style[slug] = notices
+            sources_by_style[slug] = spec.get("_stylekitSource")
             for template in (spec.get("components") or {}).values():
                 if isinstance(template, dict) and template.get("code"):
                     inconclusive |= evaluator.lint_code(spec, template["code"])["status"] == "inconclusive"
@@ -79,11 +85,15 @@ def main():
         notice_count = sum(map(len, notices_by_style.values()))
         status = "fail" if issue_count else "inconclusive" if inconclusive else "pass"
         report = {"status": status, "requested": len(requested), "checked": len(specs), "issues": issue_count,
-                  "notices": notice_count, "by_style": issues_by_style, "notices_by_style": notices_by_style, "fetch_errors": fetch_errors}
+                  "notices": notice_count, "by_style": issues_by_style, "notices_by_style": notices_by_style,
+                  "sources_by_style": sources_by_style, "fetch_errors": fetch_errors}
         if args.json:
             print(json.dumps(report, ensure_ascii=False, indent=2))
         else:
             print(f"Verified {len(specs)} of {len(requested)} styles: {status}, {issue_count} issue(s), {notice_count} notice(s)")
+            for slug, source in sources_by_style.items():
+                if isinstance(source, dict) and source.get("degraded"):
+                    print(f"  degraded source {slug}: {source.get('reason', source.get('contract', 'legacy spec'))}")
             for entries in issues_by_style.values():
                 for entry in entries:
                     print(f"  - {entry}")
