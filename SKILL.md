@@ -5,6 +5,27 @@ description: Apply StyleKit visual styles or retrieve its public assets when cre
 
 # StyleKit
 
+## Update check
+
+At the start of each Skill invocation, run the lightweight updater before using the instructions below:
+
+```bash
+python3 <skill-root>/scripts/update-skill.py --auto
+```
+
+If it reports `UPDATED`, reopen and reread this `SKILL.md` before continuing. `UP_TO_DATE`, `CHECK_DEFERRED`, `UNAVAILABLE`, `LOCAL_CHANGES_PROTECTED`, `DISABLED`, and `BUSY` mean continue with the installed instructions; an offline check does not block the task. The check contacts the official `AnxForever/stylekit-skill` GitHub `main` archive at most once every 24 hours. It changes only files recorded by the verified release manifest. If any managed file was edited, removed, or collides with an untracked local file, the whole update is skipped. A forced check bypasses only the 24-hour interval; it never overrides local changes. `--disable` suppresses both automatic and forced checks until `--enable` is run. If your installation source is explicitly pinned to a tag or commit, disable automatic updates first; the updater does not detect the installer's pin and otherwise follows `main`.
+
+To inspect or control updates, run the script from this Skill's installation directory:
+
+```bash
+python3 <skill-root>/scripts/update-skill.py --status
+python3 <skill-root>/scripts/update-skill.py --disable
+python3 <skill-root>/scripts/update-skill.py --enable
+python3 <skill-root>/scripts/update-skill.py --force-check
+```
+
+Older project installations need a one-time `npx skills@latest update stylekit`; global installations use `npx skills@latest update stylekit --global`. The Skills CLI manages this migration and may replace the existing Skill directory; save local customizations before migrating. After migration, the bundled updater preserves local changes by skipping the entire update. Clients decide whether to follow Skill instructions, so this check is not a client-enforced guarantee.
+
 Use StyleKit to give frontend UI a recognizable visual direction. Begin with the user's goal and the target project's existing structure; a style spec guides the design but does not replace product decisions.
 
 ## Workflow

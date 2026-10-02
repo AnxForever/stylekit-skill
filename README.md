@@ -92,23 +92,36 @@ python3 <skill-root>/scripts/eval-check.py neo-brutalist ./button.tsx --spec /tm
 ## 安装
 
 ```bash
-npx skills add AnxForever/stylekit-skill
+npx skills@latest add AnxForever/stylekit-skill
 ```
 
-这只安装 Agent Skill，不会安装或配置 MCP server。若想让客户端通过 MCP 调用 StyleKit，可单独把下面的 stdio server 项加入该客户端的 MCP 配置：
+这只安装 Agent Skill，不会安装或配置 MCP server。首次安装后的 Skill 会在每次启用时按 24 小时缓存检查 GitHub `main`；发现更新后先重读新的 `SKILL.md`。离线时继续使用当前版本，检测到本地改动会跳过整次更新。客户端仍需遵循 Skill 的启动指令，不能由仓库强制执行。若安装来源显式固定到 tag 或 commit，请先禁用自动更新；本机制不会检测安装器的 pin，默认跟随 `main`。
+
+从旧版接入这套机制只需迁移一次。项目级安装在项目目录运行 `npx skills@latest update stylekit`；全局安装运行 `npx skills@latest update stylekit --global`。Skills CLI 会替换现有 Skill 目录；如果你改过里面的文件，请先另存。后续可用以下命令查看或控制自动检查：
+
+```bash
+python3 <skill-root>/scripts/update-skill.py --status
+python3 <skill-root>/scripts/update-skill.py --disable
+python3 <skill-root>/scripts/update-skill.py --enable
+python3 <skill-root>/scripts/update-skill.py --force-check
+```
+
+强制检查只跳过 24 小时等待，不会覆盖本地改动；禁用时，自动检查和强制检查都会停止，直到再次启用。
+
+若想让客户端通过 MCP 调用 StyleKit，可单独把下面的 stdio server 项加入该客户端的 MCP 配置：
 
 ```json
 {
   "mcpServers": {
     "stylekit": {
       "command": "npx",
-      "args": ["-y", "stylekit-mcp@0.3.0"]
+      "args": ["-y", "--prefer-online", "stylekit-mcp@latest"]
     }
   }
 }
 ```
 
-这是独立的可选接入方式。Skill 不会自动执行 `npx`，也不会改写客户端配置。StyleKit MCP `0.3.0` 提供只读的目录搜索、实现 brief、风格信息、tokens、组件配方、shadcn 安装命令和规则检查工具。
+这是独立的可选接入方式。Skill 不会改写客户端配置。StyleKit MCP `0.4.0` 提供 9 个只读工具，包括风格与实现 brief，以及公开资产目录搜索和单项详情读取。`@latest` 会在客户端重新启动 MCP 进程时检查 npm 上的当前版本；已经运行的进程需要重启后才会使用新版本。
 
 ## 相关项目
 
@@ -117,6 +130,10 @@ npx skills add AnxForever/stylekit-skill
 | [stylekit](https://github.com/AnxForever/stylekit) | 风格库本体 · [stylekit.top](https://stylekit.top) |
 | [stylekit-mcp](https://github.com/AnxForever/stylekit-mcp) | MCP Server —— 在 Claude Code / Cursor 里直接调用 |
 | **stylekit-skill** | 本仓库：Agent Skill |
+
+## 发布维护
+
+修改 `SKILL.md`、`scripts/`、`references/`、`agents/` 或 `assets/` 后，递增 `scripts/generate-release-manifest.py` 中的 `RELEASE_VERSION`，再运行 `python3 scripts/generate-release-manifest.py`。CI 会校验文件哈希，并要求受管理内容变化时版本递增。清单不包含自身或本地更新状态。
 
 ## 许可
 
