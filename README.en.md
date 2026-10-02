@@ -65,7 +65,18 @@ Replace the example ID with an exact `kind/id` from search results. Template fil
 npx skills add AnxForever/stylekit-skill
 ```
 
-This installs only the Agent Skill; it does not install or configure the MCP server.
+This installs only the Agent Skill; it does not install or configure the MCP server. On each Skill invocation, the instructions check the official GitHub `main` archive at most once every 24 hours and ask the agent to reread `SKILL.md` if updated. Offline checks continue with the installed version; local edits to managed files skip the entire update. Clients still decide whether to follow Skill instructions, so the repository cannot force every client to run the check. If your installation source is explicitly pinned to a tag or commit, disable automatic updates first; the updater does not detect the installer's pin and otherwise follows `main`.
+
+Existing installations need a one-time migration. From the project directory, run `npx skills@latest update stylekit`; for a global installation, run `npx skills@latest update stylekit --global`. The Skills CLI may replace the existing Skill directory; save local customizations first. After migration, the bundled updater protects local changes. You can inspect or control it with:
+
+```bash
+python3 <skill-root>/scripts/update-skill.py --status
+python3 <skill-root>/scripts/update-skill.py --disable
+python3 <skill-root>/scripts/update-skill.py --enable
+python3 <skill-root>/scripts/update-skill.py --force-check
+```
+
+A forced check bypasses only the 24-hour interval and never overwrites local changes. Disabling updates stops both automatic and forced checks until re-enabled.
 
 ## Optional MCP server
 
@@ -76,13 +87,13 @@ To call StyleKit through MCP, add this stdio server entry to your client's MCP c
   "mcpServers": {
     "stylekit": {
       "command": "npx",
-      "args": ["-y", "stylekit-mcp@0.3.0"]
+      "args": ["-y", "--prefer-online", "stylekit-mcp@latest"]
     }
   }
 }
 ```
 
-This is a separate integration. The Skill does not run `npx` automatically or edit client configuration. Published StyleKit MCP `0.3.0` provides read-only tools for catalogue search, implementation briefs, style details, tokens, component recipes, shadcn install commands and rule checks.
+This is a separate integration. The Skill does not edit client configuration. StyleKit MCP `0.4.0` provides nine read-only tools, including style briefs and public asset catalogue/detail access. With `@latest`, npm checks for the current package when the client starts the MCP process; an already running process must be restarted to use a new version.
 
 ## Related projects
 
@@ -91,6 +102,10 @@ This is a separate integration. The Skill does not run `npx` automatically or ed
 | [stylekit](https://github.com/AnxForever/stylekit) | The style library · [stylekit.top](https://stylekit.top) |
 | [stylekit-mcp](https://github.com/AnxForever/stylekit-mcp) | Optional MCP server for MCP-compatible clients |
 | **stylekit-skill** | This repository: the Agent Skill |
+
+## Release maintenance
+
+After changing `SKILL.md`, `scripts/`, `references/`, `agents/` or `assets/`, increment `RELEASE_VERSION` in `scripts/generate-release-manifest.py` and run `python3 scripts/generate-release-manifest.py`. CI checks the payload hashes and requires a version increase whenever managed files change. The manifest excludes itself and local update state.
 
 ## License
 

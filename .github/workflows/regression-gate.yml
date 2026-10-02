@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -17,6 +19,25 @@ jobs:
           head -1 SKILL.md | grep -q '^---$'
           grep -q '^name: stylekit$' SKILL.md
           grep -q '^description:' SKILL.md
+      - name: Check published Skill manifest
+        run: python3 scripts/generate-release-manifest.py --check
+      - name: Require a version bump when managed files change
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            BASE_SHA="$PUSH_BEFORE_SHA"
+          else
+            exit 0
+          fi
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            exit 0
+          fi
+          python3 scripts/generate-release-manifest.py --check-version-against "$BASE_SHA"
       - name: Run deterministic script and shared contract tests
         run: python3 -m unittest discover -s tests -v
   live-integration:

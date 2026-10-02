@@ -1,0 +1,64 @@
+{
+  "branch": "main",
+  "files": {
+    "SKILL.md": {
+      "sha256": "ce446da826199ba26a7c756e5db6fb637d2100bcae8b63b007e5138dc8688898",
+      "size": 8316
+    },
+    "references/assets.md": {
+      "sha256": "6ce907c99d270fad80d6f1755f169c1ab24c5de9de0588bbb8a890acdf7641d8",
+      "size": 5568
+    },
+    "references/design-principles.md": {
+      "sha256": "7f09fe585281299934f16ae59d96fb3302d19051845e1da08a46d1d414e1be03",
+      "size": 3367
+    },
+    "references/forward-test.md": {
+      "sha256": "39e5222da8f9247a11746d6585bcc790eb7fca3c1bb4f5c731e71e6c6454b6fd",
+      "size": 1906
+    },
+    "references/style-signatures.md": {
+      "sha256": "68abe03fef25448f26d1f07fb9e5e049267fc811d4141443da6b97ad07715f24",
+      "size": 2841
+    },
+    "scripts/benchmark.py": {
+      "sha256": "c50eeffd4838a0ee6d588dcdd39ceb80c96a8e6da6021a7d1db25ff36ec4565b",
+      "size": 9476
+    },
+    "scripts/detect-project.py": {
+      "sha256": "bbc9d17e3dfa560a2c101d898d16e2bef8d9782811cac7f087ff78f7f399db82",
+      "size": 5555
+    },
+    "scripts/eval-check.py": {
+      "sha256": "90a0a16562135b7008521498c77a07589366cfa5457ead83014f7a8cb78489b0",
+      "size": 13411
+    },
+    "scripts/fetch-asset.py": {
+      "sha256": "84b716abf6219f720f87f365c43c5ac69a5de56d8c064d6d4b53f35aff0a1872",
+      "size": 29814
+    },
+    "scripts/fetch-style.py": {
+      "sha256": "3ffa55e12a8922e484c6e58f7e1da9c406f152a719859a5aa64a236b8a11005b",
+      "size": 7077
+    },
+    "scripts/generate-release-manifest.py": {
+      "sha256": "f4f76fbe37f38f9de291bb8528a42d97cd495845c416a12a8ee79763ed458dbd",
+      "size": 5005
+    },
+    "scripts/spec_input.py": {
+      "sha256": "9f4cf453f633c6bdf2a2227ccee5c2c861204f1fa3c379a7309fbc86734b06c8",
+      "size": 17205
+    },
+    "scripts/update-skill.py": {
+      "sha256": "a18babd0da0b8365200eb2663aab5c392334fb6e996ad69d24c26cae0632afb3",
+      "size": 37561
+    },
+    "scripts/verify-spec.py": {
+      "sha256": "62490b2868f4ce070ec04f5a820de058cbeb88864e4e169752558bf07d3871c6",
+      "size": 5753
+    }
+  },
+  "repository": "AnxForever/stylekit-skill",
+  "schemaVersion": 1,
+  "version": "0.7.0"
+}
