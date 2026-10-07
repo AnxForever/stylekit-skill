@@ -9,7 +9,7 @@ Before generating, define:
 - **purpose** — what this UI must achieve
 - **audience** — who uses it and what they value
 - **tone** — aesthetic direction
-- **memorable hook** — one unforgettable visual decision
+- **visual emphasis** — what should attract attention, if the task needs a new direction
 
 ## Iteration Modes
 
@@ -31,12 +31,12 @@ Before generating, define:
 
 - Avoid interchangeable templates with no style point-of-view.
 - Avoid default purple-on-white gradient clichés unless the style explicitly requires it.
-- Avoid relying only on generic fonts (Inter/Roboto/Arial/system-ui).
-- Build atmosphere through layered backgrounds (gradient, texture, shape, depth).
+- Choose typography for the product and platform. A system font can be the right choice for native UI, dense tools, or an established design system.
+- Add texture, depth, or motion when it supports the chosen direction; a focused repair does not need a new visual theme.
 
 ## Token Hierarchy
 
-Use semantic tokens in this order — never skip a layer:
+Follow the project's existing token model. When a new model is needed, separate:
 
 1. Brand tokens
 2. Semantic tokens (primary/surface/text/border)
@@ -47,7 +47,7 @@ Component layering model: **Base → Variant → Size → State → Override**.
 
 ## Typography Direction
 
-- Pair one expressive display font with one readable body font.
+- Use an expressive display face only when the visual direction calls for it; preserve platform scaling and existing brand typography.
 - Use scale/weight/spacing contrast to drive hierarchy.
 - Keep type rhythm consistent across breakpoints.
 
@@ -55,7 +55,7 @@ Component layering model: **Base → Variant → Size → State → Override**.
 
 - Contrast target: WCAG AA (4.5:1 for normal text)
 - Focus-visible states required for keyboard users
-- Touch targets: at least 44x44px (or 24x24 minimum if constrained)
+- Touch targets: prefer comfortable hit areas for primary actions. For Web, WCAG 2.2's minimum is 24 by 24 CSS px or a documented exception; use the native platform's units and guidance for apps.
 - Respect `prefers-reduced-motion`
 - Mention interaction states (hover/active/focus/disabled) in the component spec
 
@@ -65,7 +65,7 @@ Run these before delivering generated UI:
 
 - **Swap test**: if replacing your key choices with defaults still looks similar, the style identity is weak.
 - **Squint test**: hierarchy should remain clear when details are blurred.
-- **Signature test**: identify 3+ concrete UI elements that carry the style signature.
+- **Signature test**: identify the concrete choices that carry the selected style; judge them relative to the scope of the change.
 - **Token test**: token names/values should reflect product semantics, not generic template language.
 
 ## Anti-pattern Blacklist
