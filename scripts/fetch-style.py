@@ -140,7 +140,7 @@ def main() -> None:
     parser.add_argument("--search")
     parser.add_argument("--json", action="store_true", help="Preserve the complete machine-readable spec")
     inputs = parser.add_mutually_exclusive_group()
-    inputs.add_argument("--spec", type=Path, help="Read a saved CLI/API brief or legacy spec offline")
+    inputs.add_argument("--spec", type=Path, help="Read a saved complete CLI/API brief or legacy spec offline")
     inputs.add_argument("--from-file", type=Path, help="Read an MCP tool result JSON envelope (or a direct brief)")
     parser.add_argument("--base-url", default=BASE, help="StyleKit API base, origin, or /api prefix (default: %(default)s)")
     args = parser.parse_args()

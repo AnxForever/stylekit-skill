@@ -13,7 +13,7 @@ from pathlib import Path
 
 REPOSITORY = "AnxForever/stylekit-skill"
 BRANCH = "main"
-RELEASE_VERSION = "0.7.0"
+RELEASE_VERSION = "0.8.0"
 MANIFEST = Path(__file__).resolve().with_name("release-manifest.json")
 ROOT = MANIFEST.parents[1]
 PAYLOAD_FILES = (Path("SKILL.md"),)

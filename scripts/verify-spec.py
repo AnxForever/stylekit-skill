@@ -48,7 +48,7 @@ def main():
     parser.add_argument("slug", nargs="?")
     parser.add_argument("--json", action="store_true")
     sources = parser.add_mutually_exclusive_group()
-    sources.add_argument("--spec", type=Path, help="Check a saved CLI/API brief or legacy spec")
+    sources.add_argument("--spec", type=Path, help="Check a saved complete CLI/API brief or legacy spec")
     sources.add_argument("--from-file", type=Path, help="Check a saved MCP tool result JSON envelope")
     parser.add_argument("--base-url", default=BASE, help="StyleKit API base used for online checks")
     args = parser.parse_args()

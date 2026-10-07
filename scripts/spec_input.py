@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load and normalize StyleKit specs from HTTP, CLI, or MCP JSON files."""
+"""Load and normalize full StyleKit specs from HTTP or saved CLI/API/MCP JSON."""
 
 import json
 import re
@@ -278,7 +278,7 @@ def _extract_mcp_payload(payload: object, expected_slug: str | None) -> tuple[di
         detail = f": {errors[-1]}" if errors else ""
         raise ValueError("MCP result has no usable structuredContent or JSON text block" + detail)
 
-    # A CLI brief is often copied directly to a file and passed through --from-file.
+    # A complete API or CLI brief may also be passed directly through --from-file.
     return _contract(payload, expected_slug)[0], "direct-json"
 
 

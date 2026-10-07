@@ -236,7 +236,7 @@ def main():
     source.add_argument("--stdin", action="store_true")
     source.add_argument("--dir", type=Path)
     spec_inputs = parser.add_mutually_exclusive_group()
-    spec_inputs.add_argument("--spec", type=Path, help="Use a saved CLI/API brief or legacy spec")
+    spec_inputs.add_argument("--spec", type=Path, help="Use a saved complete CLI/API brief or legacy spec")
     spec_inputs.add_argument("--from-file", type=Path, help="Use a saved MCP tool result JSON envelope")
     parser.add_argument("--base-url", default=BASE, help="StyleKit API base used when no spec file is supplied")
     parser.add_argument("--component", choices=("button", "card", "input"))
