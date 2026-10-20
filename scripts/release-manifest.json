@@ -22,8 +22,8 @@
       "size": 6608
     },
     "references/spec-workflow.md": {
-      "sha256": "e0c3e930ca56c4342ea02871cddb6695f0998377c16be0ca055719568b06786a",
-      "size": 3483
+      "sha256": "56fbfadf0c82df58955087b9080bc782cceeb7e31b37c5cbc623ac49a87228a8",
+      "size": 4182
     },
     "references/style-signatures.md": {
       "sha256": "68abe03fef25448f26d1f07fb9e5e049267fc811d4141443da6b97ad07715f24",
@@ -42,8 +42,8 @@
       "size": 13489
     },
     "scripts/eval-check.py": {
-      "sha256": "85a7b81384a2c53c9bb2f525265344b3dbd813a5732eaf2d389aba5b40aaf94d",
-      "size": 13420
+      "sha256": "5ef5f21f488b2763533f1104bc92bb6325ad4f94b91fcc9e3b6a62caa1558c51",
+      "size": 33715
     },
     "scripts/fetch-asset.py": {
       "sha256": "84b716abf6219f720f87f365c43c5ac69a5de56d8c064d6d4b53f35aff0a1872",
@@ -54,12 +54,12 @@
       "size": 7086
     },
     "scripts/generate-release-manifest.py": {
-      "sha256": "dc47cc5428790afc93399b257290e46f078ca6cd81cb319ebbc1e39d5e8b4095",
+      "sha256": "58dd94a69a03cc134d115230a91745acc1e07bd34a178ea1d4aa18b284ed5739",
       "size": 5005
     },
     "scripts/spec_input.py": {
-      "sha256": "da42bca67a4d6536b22b3963ca9612bfaa11bc974b34c573fee0ba9f9b374b70",
-      "size": 17210
+      "sha256": "5c4dd782dbbcaed49f3afd296bfe7fdbbae4ba097bad9f8397c973cdbc793334",
+      "size": 19003
     },
     "scripts/update-skill.py": {
       "sha256": "a18babd0da0b8365200eb2663aab5c392334fb6e996ad69d24c26cae0632afb3",
@@ -72,5 +72,5 @@
   },
   "repository": "AnxForever/stylekit-skill",
   "schemaVersion": 1,
-  "version": "0.8.0"
+  "version": "0.8.1"
 }

@@ -105,6 +105,8 @@ def _validate_tokens(tokens: object) -> None:
     reasons = forbidden.get("reasons")
     if not isinstance(reasons, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in reasons.items()):
         raise ValueError("incomplete stylekit-brief-v1: tokens.forbidden.reasons must map strings to strings")
+    if "exceptions" in forbidden and not isinstance(forbidden["exceptions"], list):
+        raise ValueError("incomplete stylekit-brief-v1: tokens.forbidden.exceptions must be an array")
 
     required = tokens.get("required")
     if not isinstance(required, dict):
@@ -154,6 +156,15 @@ def _validate_readiness(readiness: object) -> None:
 
 
 def _validate_brief(spec: dict) -> None:
+    projection = spec.get("projection")
+    if projection is not None:
+        if not isinstance(projection, dict):
+            raise ValueError("incomplete stylekit-brief-v1: projection metadata must be an object")
+        if projection.get("complete") is not True:
+            raise ValueError("partial implementation brief cannot be used as a complete static spec; fetch the full brief")
+        if projection.get("lintRulesIncluded") is not True or projection.get("lintRulesComplete") is not True:
+            raise ValueError("implementation brief does not include the complete lint rule contract; fetch the full brief")
+
     strings = ("name", "nameEn", "category", "styleType", "description", "philosophy", "aiRules", "globalCss")
     for key in strings:
         if not isinstance(spec.get(key), str):
@@ -180,8 +191,19 @@ def _validate_brief(spec: dict) -> None:
     _validate_readiness(spec.get("readiness"))
 
     rules = spec.get("lintRules")
-    if not isinstance(rules, dict) or rules.get("schemaVersion") != "stylekit-lint-v1":
-        raise ValueError("incomplete stylekit-brief-v1: lintRules must use stylekit-lint-v1")
+    if not isinstance(rules, dict) or rules.get("schemaVersion") not in ("stylekit-lint-v1", "stylekit-lint-v2"):
+        raise ValueError("incomplete stylekit-brief-v1: lintRules must use stylekit-lint-v1 or stylekit-lint-v2")
+    if rules["schemaVersion"] == "stylekit-lint-v1" and "forbiddenExceptions" in rules:
+        raise ValueError("incomplete stylekit-brief-v1: forbiddenExceptions requires stylekit-lint-v2")
+    if rules["schemaVersion"] == "stylekit-lint-v2" and not isinstance(rules.get("forbiddenExceptions"), list):
+        raise ValueError("incomplete stylekit-brief-v1: lintRules.forbiddenExceptions must be an array")
+    token_exceptions = (spec.get("tokens") or {}).get("forbidden", {}).get("exceptions", [])
+    if rules["schemaVersion"] == "stylekit-lint-v1" and token_exceptions:
+        raise ValueError("incomplete stylekit-brief-v1: token exceptions require stylekit-lint-v2")
+    if rules["schemaVersion"] == "stylekit-lint-v2" and any(
+        exception not in rules["forbiddenExceptions"] for exception in token_exceptions
+    ):
+        raise ValueError("incomplete stylekit-brief-v1: lintRules omits token forbidden exceptions")
     for key in ("sources", "forbiddenClasses", "forbiddenPatterns", "exempt", "unsupportedRules"):
         if not isinstance(rules.get(key), list):
             raise ValueError(f"incomplete stylekit-brief-v1: lintRules.{key} must be an array")

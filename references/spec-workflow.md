@@ -20,6 +20,8 @@ python3 "<skill-root>/scripts/fetch-style.py" "<slug>" --from-file "<work-dir>/m
 
 `--spec` accepts the full `stylekit-brief-v1` contract or a supported legacy style response. Arbitrary JSON, token-only output, and CLI display summaries are not interchangeable with a full spec. `--from-file` reads `structuredContent` first, then a text block containing the complete JSON brief. Neither Python command installs a CLI, starts a server, or configures a client. An MCP error or malformed result is not a usable spec.
 
+The brief's outer schema remains `stylekit-brief-v1`; its nested lint contract may use `stylekit-lint-v1` or `stylekit-lint-v2`. V2 adds scoped forbidden-class exceptions. Unknown lint versions or exception fields stop evaluation with an error. A projected brief is complete for static checks only when `projection.complete`, `projection.lintRulesIncluded`, and `projection.lintRulesComplete` are all `true`; partial projections are rejected even if they retain the full source `contentHash`.
+
 If the StyleKit CLI is already part of the workflow, its `brief` command is another valid source. The published `stylekit-cli@0.3.1` was checked on 2026-10-07: its output normalizes through `--spec` as `stylekit-brief-v1`. Check the installed version's help or use this exact package name/version for a reproducible invocation:
 
 ```bash
@@ -36,6 +38,8 @@ The HTTP loader falls back to the legacy endpoint only when the implementation-b
 Use isolated component files or snippets for `--component ... --strict`. Required classes are checked against the union of classes in an input, not independently for each element. Use `--dir "<project-root>"` for a broad scan without component-required checks.
 
 The evaluator checks statically readable web classes. It does not compile CSS, resolve every expression, validate native UI, or prove visual/interaction quality. Missing rules and unsupported patterns can make results `inconclusive`; review them rather than calling them passed. Keep application build, runtime, accessibility, and asset-integration results separate.
+
+For v2 element exception scopes, `classesAll` and `classPrefixesAll` match exact utility tokens. Responsive, state, and important variants do not prove that the unmodified element has the required class.
 
 If a recipe contradicts another part of its spec:
 

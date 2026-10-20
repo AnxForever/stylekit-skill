@@ -147,6 +147,55 @@ class SpecInputTests(unittest.TestCase):
             self.assertEqual(text_result["_stylekitSource"]["kind"], "mcp-text-content")
             self.assertFalse(text_result["_stylekitSource"]["degraded"])
 
+    def test_v2_full_brief_loads_through_spec_and_mcp_cli_paths(self):
+        brief = self.brief()
+        brief["lintRules"] = {
+            **brief["lintRules"],
+            "schemaVersion": "stylekit-lint-v2",
+            "forbiddenClasses": [{"className": "bg-white", "reason": "Active only.", "source": "curated"}],
+            "forbiddenExceptions": [{
+                "className": "bg-white",
+                "reason": "The active state may use white.",
+                "variants": {"all": ["active"]},
+            }],
+        }
+        active_code = '<button className="active:bg-white" />'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "button.tsx"
+            source.write_text(active_code, encoding="utf-8")
+            spec_path = self.write_json(root / "brief.json", brief)
+            loaded = spec_input.load_spec_file(spec_path, "neo-brutalist")
+            self.assertEqual(loaded["lintRules"]["forbiddenExceptions"], brief["lintRules"]["forbiddenExceptions"])
+            self.assertEqual(evaluate.lint_code(loaded, active_code)["status"], "pass")
+
+            mcp_path = self.write_json(root / "mcp.json", {"structuredContent": brief})
+            mcp_loaded = spec_input.load_spec_file(mcp_path, "neo-brutalist", from_mcp=True)
+            self.assertEqual(mcp_loaded["lintRules"]["forbiddenExceptions"], brief["lintRules"]["forbiddenExceptions"])
+
+            for option, path in (("--spec", spec_path), ("--from-file", mcp_path)):
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts" / "eval-check.py"), "neo-brutalist", str(source), option, str(path)],
+                    cwd=root, capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+            partial = {**brief, "projection": {"complete": False, "lintRulesIncluded": True, "lintRulesComplete": True}}
+            partial_path = self.write_json(root / "partial.json", partial)
+            with self.assertRaisesRegex(ValueError, "partial implementation brief"):
+                spec_input.load_spec_file(partial_path, "neo-brutalist")
+            partial_run = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "eval-check.py"), "neo-brutalist", str(source), "--spec", str(partial_path)],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(partial_run.returncode, 2, partial_run.stdout + partial_run.stderr)
+            self.assertIn("partial implementation brief", partial_run.stderr)
+
+            omitted_rules = {**brief, "projection": {"complete": True, "lintRulesIncluded": False, "lintRulesComplete": False}}
+            omitted_path = self.write_json(root / "omitted-lint.json", omitted_rules)
+            with self.assertRaisesRegex(ValueError, "does not include the complete lint rule contract"):
+                spec_input.load_spec_file(omitted_path, "neo-brutalist")
+
     def test_slug_schema_and_read_errors_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -163,7 +212,7 @@ class SpecInputTests(unittest.TestCase):
             incomplete = self.brief()
             del incomplete["lintRules"]
             incomplete_path = self.write_json(root / "incomplete.json", incomplete)
-            with self.assertRaisesRegex(ValueError, "lintRules must use stylekit-lint-v1"):
+            with self.assertRaisesRegex(ValueError, "lintRules must use stylekit-lint-v1 or stylekit-lint-v2"):
                 spec_input.load_spec_file(incomplete_path, "neo-brutalist")
 
             incomplete_tokens = self.brief()
@@ -463,6 +512,265 @@ class LintContractTests(unittest.TestCase):
         spec = {"slug": "test", "lintRules": {"schemaVersion": "stylekit-lint-v1", "sources": ["tokens"], "forbiddenClasses": [], "forbiddenPatterns": [{"pattern": "[", "source": "tokens"}], "exempt": [], "required": {}}}
         self.assertEqual(evaluate.lint_code(spec, '<div class="p-4"/>')["status"], "inconclusive")
         self.assertEqual(evaluate.lint_code({"slug": "unknown"}, '<div class="p-4"/>')["status"], "inconclusive")
+
+    def test_v2_scoped_exceptions_match_state_and_element_context(self):
+        spec = {
+            "slug": "scoped-fixture",
+            "lintRules": {
+                "schemaVersion": "stylekit-lint-v2",
+                "sources": ["fixture"],
+                "forbiddenClasses": [
+                    {"className": "bg-white", "reason": "Use the active state only.", "source": "curated"},
+                    {"className": "text-black", "reason": "Use the active state only.", "source": "curated"},
+                    {"className": "rounded-full", "reason": "Reserve circles for small decorations.", "source": "curated"},
+                ],
+                "forbiddenPatterns": [],
+                "required": {},
+                "exempt": [],
+                "unsupportedRules": [],
+                "forbiddenExceptions": [
+                    {"className": "bg-white", "reason": "The active state is allowed.", "variants": {"all": ["active"]}},
+                    {"className": "text-black", "reason": "The active text state is allowed.", "variants": {"all": ["active"]}},
+                    {
+                        "className": "rounded-full",
+                        "reason": "Small outlined decorative dots may be circular.",
+                        "element": {
+                            "tags": ["span"],
+                            "classesAll": ["absolute", "border-2", "border-black"],
+                            "classPrefixesAll": ["inset-"],
+                            "squareDimensions": True,
+                            "maxDimension": 2,
+                        },
+                    },
+                    {
+                        "className": "rounded-full",
+                        "reason": "Compact text labels may use pill corners.",
+                        "element": {"tags": ["span"], "classesAll": ["text-xs"], "classPrefixesAll": ["px-", "py-"]},
+                    },
+                ],
+            },
+        }
+        samples = [
+            ('<button className="active:bg-white active:text-black" />', "pass"),
+            ('<button className="hover:active:bg-white hover:active:text-black" />', "pass"),
+            ('<button className="bg-white text-black" />', "fail"),
+            ('<button className="hover:bg-white hover:text-black" />', "fail"),
+            ('<span className="absolute border-2 border-black inset-0 w-2 h-2 rounded-full" />', "pass"),
+            ('<span className="absolute border-2 border-black inset-0 size-2 rounded-full" />', "pass"),
+            ('<span className="absolute border-2 border-black inset-0 w-[8px] h-[0.5rem] rounded-full" />', "pass"),
+            ('<span className="absolute border-2 border-black inset-0 w-3 h-3 rounded-full" />', "fail"),
+            ('<span className="absolute border-2 border-black inset-0 size-4 rounded-full" />', "fail"),
+            ('<span className="absolute border-2 border-black inset-0 aspect-square w-2 rounded-full" />', "pass"),
+            ('<span className="absolute border-2 border-black inset-0 aspect-square rounded-full" />', "inconclusive"),
+            ('<span className="absolute border-2 border-black inset-0 aspect-square w-[1rem] rounded-full" />', "fail"),
+            ('<span className="absolute border-2 border-black inset-0 sm:w-2 w-2 h-2 rounded-full" />', "inconclusive"),
+            ('<span className="absolute border-2 border-black inset-0 size-2 w-4 h-4 rounded-full" />', "inconclusive"),
+            ('<button className="absolute border-2 border-black inset-0 w-2 h-2 rounded-full" />', "fail"),
+            ('<span className="absolute border-2 border-black inset-0 rounded-full" />', "inconclusive"),
+            ('<span className={cn("absolute border-2 border-black inset-0 w-2 h-2 rounded-full", extra)} />', "inconclusive"),
+            ('className="absolute border-2 border-black inset-0 w-2 h-2 rounded-full"', "inconclusive"),
+            ('<span className="px-1.5 py-0.5 text-xs rounded-full">Public</span>', "pass"),
+            ('<button className="px-1.5 py-0.5 text-xs rounded-full">Public</button>', "fail"),
+            ("<span title='className=\"w-2 h-2 rounded-full\"' />", "inconclusive"),
+            ('<span data-className="w-2 h-2 rounded-full" />', "inconclusive"),
+            (r'const r = /<span className="w-2 h-2 rounded-full" \/>/.test(code);', "inconclusive"),
+            (r'if (ready) /<span className="w-2 h-2 rounded-full" \/>/.test(source);', "inconclusive"),
+            (r'if (ready) {} else /<button className="rounded-full" \/>/.test(value);', "inconclusive"),
+            (r'do /<button className="rounded-full" \/>/.test(value); while (ready);', "inconclusive"),
+            ("const r = '<span className=\"w-2 h-2 rounded-full\" />';", "inconclusive"),
+            (r'// <span className="w-2 h-2 rounded-full" />', "inconclusive"),
+            (r'/* <span className="w-2 h-2 rounded-full" /> */', "inconclusive"),
+        ]
+        for code, status in samples:
+            with self.subTest(code=code):
+                self.assertEqual(evaluate.lint_code(spec, code)["status"], status)
+        aspect_only = {
+            **spec,
+            "lintRules": {
+                **spec["lintRules"],
+                "forbiddenExceptions": [{
+                    "className": "rounded-full",
+                    "reason": "Square decoration may be circular.",
+                    "element": {"tags": ["span"], "squareDimensions": True},
+                }],
+            },
+        }
+        self.assertEqual(evaluate.lint_code(aspect_only, '<span className="aspect-square rounded-full" />')["status"], "pass")
+
+        for field, required, base_code, conditional_code in [
+            (
+                "classesAll", ["aspect-square"],
+                '<span className="aspect-square rounded-full" />',
+                '<span className="md:aspect-square rounded-full" />',
+            ),
+            (
+                "classPrefixesAll", ["inset-"],
+                '<span className="inset-0 rounded-full" />',
+                '<span className="md:inset-0 rounded-full" />',
+            ),
+        ]:
+            exact_evidence = {
+                **spec,
+                "lintRules": {
+                    **spec["lintRules"],
+                    "forbiddenExceptions": [{
+                        "className": "rounded-full",
+                        "reason": "Only unmodified structural classes establish this scope.",
+                        "element": {"tags": ["span"], field: required},
+                    }],
+                },
+            }
+            with self.subTest(scope_field=field):
+                self.assertEqual(evaluate.lint_code(exact_evidence, base_code)["status"], "pass")
+                self.assertEqual(evaluate.lint_code(exact_evidence, conditional_code)["status"], "fail")
+
+        max_only_spec = {
+            **spec,
+            "lintRules": {
+                **spec["lintRules"],
+                "forbiddenExceptions": [{
+                    "className": "rounded-full",
+                    "reason": "A square element within the size limit may be circular.",
+                    "element": {"tags": ["span"], "maxDimension": 2},
+                }],
+            },
+        }
+        self.assertEqual(evaluate.lint_code(max_only_spec, '<span className="w-2 h-2 rounded-full" />')["status"], "pass")
+        self.assertEqual(evaluate.lint_code(max_only_spec, '<span className="rounded-full" />')["status"], "inconclusive")
+        self.assertEqual(evaluate.lint_code(max_only_spec, '<span className="w-2 h-3 rounded-full" />')["status"], "fail")
+
+        max3_spec = {
+            **spec,
+            "lintRules": {
+                **spec["lintRules"],
+                "forbiddenExceptions": [
+                    *spec["lintRules"]["forbiddenExceptions"][:2],
+                    {**spec["lintRules"]["forbiddenExceptions"][2], "element": {
+                        "tags": ["span"], "squareDimensions": True, "maxDimension": 3,
+                    }},
+                    *spec["lintRules"]["forbiddenExceptions"][3:],
+                ],
+            },
+        }
+        shared_vectors = [
+            ('<span className="w-3 h-3 rounded-full" />', "pass"),
+            ('<span className="size-2 rounded-full" />', "pass"),
+            ('<span className="w-[12px] h-[12px] rounded-full" />', "pass"),
+            ('<span className="w-[1rem] h-[1rem] rounded-full" />', "fail"),
+            ('<span className="size-2 w-4 h-4 rounded-full" />', "inconclusive"),
+            ('<span className="w-2 h-2 sm:w-3 sm:h-3 rounded-full" />', "inconclusive"),
+            ('<span className="aspect-square rounded-full" />', "inconclusive"),
+            ('<span className="aspect-square w-2 rounded-full" />', "pass"),
+        ]
+        for code, status in shared_vectors:
+            with self.subTest(shared_vector=code):
+                self.assertEqual(evaluate.lint_code(max3_spec, code)["status"], status)
+
+        review_spec = {
+            **spec,
+            "doList": ["Use explicit states."],
+            "dontList": ["Avoid broad circular controls."],
+            "aiRules": "Keep exceptions scoped.",
+            "components": {"button": {"code": '<button className="active:bg-white active:text-black" />'}},
+        }
+        issues, _ = verify.check_spec(review_spec)
+        self.assertEqual(issues, [])
+
+    def test_v2_unknown_schema_and_capabilities_fail_closed(self):
+        code = '<span className="rounded-full" />'
+        base = {
+            "schemaVersion": "stylekit-lint-v2",
+            "sources": ["fixture"],
+            "forbiddenClasses": [{"className": "rounded-full", "reason": "no", "source": "curated"}],
+            "forbiddenPatterns": [], "required": {}, "exempt": [], "unsupportedRules": [],
+            "forbiddenExceptions": [{"className": "rounded-full", "reason": "small dots only", "element": {"tags": ["span"], "squareDimensions": True, "maxDimension": 2}}],
+        }
+        with self.assertRaisesRegex(ValueError, "Unsupported lint rule contract"):
+            evaluate.lint_code({"slug": "test", "lintRules": {**base, "schemaVersion": "stylekit-lint-v3"}}, code)
+        with self.assertRaisesRegex(ValueError, "unknownPredicate"):
+            bad_exception = {**base["forbiddenExceptions"][0], "element": {**base["forbiddenExceptions"][0]["element"], "unknownPredicate": True}}
+            evaluate.lint_code({"slug": "test", "lintRules": {**base, "forbiddenExceptions": [bad_exception]}}, code)
+        with self.assertRaisesRegex(ValueError, "requires stylekit-lint-v2"):
+            evaluate.lint_code({"slug": "test", "lintRules": {**base, "schemaVersion": "stylekit-lint-v1"}}, code)
+        with self.assertRaisesRegex(ValueError, "must have a non-empty state or element scope"):
+            evaluate.lint_code({
+                "slug": "test",
+                "lintRules": {**base, "forbiddenExceptions": [{"className": "rounded-full", "reason": "unscoped"}]},
+            }, code)
+        over_limit = {**base["forbiddenExceptions"][0], "element": {**base["forbiddenExceptions"][0]["element"], "maxDimension": 1025}}
+        with self.assertRaisesRegex(ValueError, "maxDimension"):
+            evaluate.lint_code({"slug": "test", "lintRules": {**base, "forbiddenExceptions": [over_limit]}}, code)
+
+    def test_state_exceptions_do_not_read_pseudo_attributes_from_non_code(self):
+        spec = {
+            "slug": "synthwave-fixture",
+            "lintRules": {
+                "schemaVersion": "stylekit-lint-v2",
+                "sources": ["fixture"],
+                "forbiddenClasses": [{"className": "bg-white", "reason": "Active only.", "source": "curated"}],
+                "forbiddenPatterns": [], "required": {}, "exempt": [], "unsupportedRules": [],
+                "forbiddenExceptions": [{
+                    "className": "bg-white", "reason": "Active state only.", "variants": {"all": ["active"]},
+                }],
+            },
+        }
+        samples = [
+            ('<button className="active:bg-white" />', "pass"),
+            ('<button className="bg-white" />', "fail"),
+            ('<button className="hover:bg-white" />', "fail"),
+            (r'const value = /<button className="active:bg-white" \/>/;', "inconclusive"),
+            ("const value = '<button className=\"active:bg-white\" />';", "inconclusive"),
+            (r'// <button className="active:bg-white" />', "inconclusive"),
+            (r'/* <button className="active:bg-white" /> */', "inconclusive"),
+        ]
+        for code, status in samples:
+            with self.subTest(code=code):
+                report = evaluate.lint_code(spec, code)
+                self.assertEqual(report["status"], status)
+                if status == "inconclusive":
+                    self.assertEqual(report["checkedClasses"], 0)
+                    self.assertEqual(report["coverage"]["classAttributes"], 0)
+
+    def test_legacy_token_exceptions_are_consumed_and_v1_cannot_drop_them(self):
+        exception = {
+            "className": "rounded-full",
+            "reason": "Only small decorative dots may be circular.",
+            "element": {"tags": ["span"], "squareDimensions": True, "maxDimension": 2},
+        }
+        legacy = {
+            "slug": "legacy-style",
+            "tokens": {
+                "forbidden": {"classes": ["rounded-full"], "patterns": [], "reasons": {}, "exceptions": [exception]},
+                "required": {},
+            },
+        }
+        self.assertEqual(evaluate.lint_code(legacy, '<span className="w-2 h-2 rounded-full" />')["status"], "pass")
+        self.assertEqual(evaluate.lint_code(legacy, '<button className="w-2 h-2 rounded-full" />')["status"], "fail")
+
+        v1 = {
+            "slug": "v1-style",
+            "tokens": legacy["tokens"],
+            "lintRules": {
+                "schemaVersion": "stylekit-lint-v1", "sources": ["tokens"],
+                "forbiddenClasses": [], "forbiddenPatterns": [], "required": {}, "exempt": [],
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "require stylekit-lint-v2"):
+            evaluate.lint_code(v1, '<span className="w-2 h-2 rounded-full" />')
+
+
+class ReleaseManifestTests(unittest.TestCase):
+    def test_manifest_matches_the_current_release_payload(self):
+        manifest_path = ROOT / "scripts/release-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["version"], "0.8.1")
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/generate-release-manifest.py"), "--check"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
